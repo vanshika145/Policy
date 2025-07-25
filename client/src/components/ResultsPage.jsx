@@ -83,7 +83,7 @@ export default function ResultsPage() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="font-medium">Amount:</span>
-                <span className="text-accent font-bold">{dummyResult.amount ? `₹${dummyResult.amount.toLocaleString()}` : '—'}</span>
+                <span className="text-accent font-bold">{dummyResult.amount ? ` ₹${dummyResult.amount.toLocaleString()}` : '—'}</span>
               </div>
             </div>
             <div>

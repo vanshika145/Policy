@@ -25,6 +25,7 @@ import {
   SelectItem,
   SelectValue
 } from '@/components/ui/select';
+import { useNavigate } from 'react-router-dom';
 
 interface QueryResult {
   decision: 'approved' | 'rejected' | 'pending';
@@ -64,6 +65,8 @@ export const QueryInterface = () => {
     "Female, 32, dental treatment, Mumbai, 1-year policy",
     "Emergency surgery, 28M, Bangalore, 6-month policy, cardiac procedure"
   ];
+
+  const navigate = useNavigate();
 
   const processQuery = async () => {
     if (!query.trim()) {
@@ -133,6 +136,9 @@ export const QueryInterface = () => {
       title: "Analysis Complete",
       description: `Query processed in ${mockResult.processingTime}s with ${mockResult.confidence}% confidence`,
     });
+
+    // Navigate to results page after analysis
+    navigate('/results');
   };
 
   const getDecisionIcon = (decision: string) => {
@@ -317,95 +323,7 @@ export const QueryInterface = () => {
         {/* Results */}
         {result && (
           <div className="space-y-6">
-            {/* Decision Summary */}
-            <Card className="ai-card-glow p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold flex items-center gap-2">
-                  Decision Summary
-                  {getDecisionIcon(result.decision)}
-                </h3>
-                <Badge variant="outline" className={getDecisionColor(result.decision)}>
-                  {result.decision.toUpperCase()}
-                </Badge>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                {result.amount && (
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="w-4 h-4 text-green-400" />
-                    <span className="font-medium">₹{result.amount.toLocaleString()}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <Brain className="w-4 h-4 text-primary" />
-                  <span className="text-sm">{result.confidence}% Confidence</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-accent" />
-                  <span className="text-sm">{result.processingTime}s Processing</span>
-                </div>
-              </div>
-              
-              <p className="text-muted-foreground">{result.justification}</p>
-            </Card>
-
-            {/* Parsed Query Details */}
-            <Card className="ai-card p-6">
-              <h4 className="text-lg font-semibold mb-4">Parsed Query Details</h4>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {result.parsedQuery.age && (
-                  <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-primary" />
-                    <span className="text-sm">Age: {result.parsedQuery.age}</span>
-                  </div>
-                )}
-                {result.parsedQuery.gender && (
-                  <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-accent" />
-                    <span className="text-sm">Gender: {result.parsedQuery.gender}</span>
-                  </div>
-                )}
-                {result.parsedQuery.procedure && (
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-primary" />
-                    <span className="text-sm">Procedure: {result.parsedQuery.procedure}</span>
-                  </div>
-                )}
-                {result.parsedQuery.location && (
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-accent" />
-                    <span className="text-sm">Location: {result.parsedQuery.location}</span>
-                  </div>
-                )}
-                {result.parsedQuery.policyDuration && (
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-primary" />
-                    <span className="text-sm">Policy: {result.parsedQuery.policyDuration}</span>
-                  </div>
-                )}
-              </div>
-            </Card>
-
-            {/* Referenced Clauses */}
-            <Card className="ai-card p-6">
-              <h4 className="text-lg font-semibold mb-4">Referenced Policy Clauses</h4>
-              <div className="space-y-2">
-                {result.clauses.map((clause, index) => (
-                  <div key={index} className="flex items-start gap-2 p-3 bg-background/30 rounded-lg">
-                    <div className="w-2 h-2 bg-primary rounded-full mt-2" />
-                    <span className="text-sm">{clause}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            {/* JSON Response */}
-            <Card className="ai-card p-6">
-              <h4 className="text-lg font-semibold mb-4">Structured JSON Response</h4>
-              <pre className="bg-background/50 p-4 rounded-lg text-sm overflow-auto">
-                {JSON.stringify(result, null, 2)}
-              </pre>
-            </Card>
+            {/* (All result sections removed as requested) */}
           </div>
         )}
       </div>

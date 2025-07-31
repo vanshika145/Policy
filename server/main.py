@@ -36,7 +36,6 @@ try:
     from langchain.chains import RetrievalQA
     from langchain_community.vectorstores import Pinecone
     from langchain_openai import OpenAIEmbeddings
-    from langchain_community.embeddings import HuggingFaceEmbeddings
     HAS_LANGCHAIN = True
 except ImportError:
     HAS_LANGCHAIN = False
@@ -109,17 +108,16 @@ async def hackrx_run(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to save PDF: {e}")
 
-    # Extract text from PDF
+    # Extract text from PDF using PyPDF2
     extracted_text = None
     extraction_error = None
     try:
-        try:
-            import fitz  # PyMuPDF
-            with fitz.open(tmp_pdf_path) as doc:
-                extracted_text = "\n".join(page.get_text() for page in doc)
-        except ImportError:
-            from pdfminer.high_level import extract_text
-            extracted_text = extract_text(tmp_pdf_path)
+        from PyPDF2 import PdfReader
+        with open(tmp_pdf_path, 'rb') as file:
+            pdf_reader = PdfReader(file)
+            extracted_text = ""
+            for page in pdf_reader.pages:
+                extracted_text += page.extract_text() + "\n"
     except Exception as e:
         extraction_error = str(e)
 
@@ -147,33 +145,37 @@ async def hackrx_run(
         
         print(f"📄 Created {len(chunks)} chunks from text")
 
-        # Use embeddings manager
-        from utils.embeddings_utils import get_embeddings_manager
-        
-        embeddings_manager = get_embeddings_manager()
-        if embeddings_manager.embeddings is None:
-            raise HTTPException(status_code=400, detail="No embeddings model available")
-        
-        # Generate embeddings for each chunk
-        texts = chunks
-        vectors = []
-        
-        for text in texts:
-            if hasattr(embeddings_manager.embeddings, 'embed_query'):
-                embedding = embeddings_manager.embeddings.embed_query(text)
-            else:
-                embedding = embeddings_manager.embeddings.encode(text).tolist()
+        # Use OpenAI embeddings directly
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
             
-            # Pad embeddings to match Pinecone index dimension (1024)
-            original_dim = len(embedding)
-            if original_dim == 1536:  # OpenAI embeddings
-                embedding = embedding[:1024]
-            elif original_dim == 384:  # HuggingFace embeddings
-                embedding = embedding + [0.0] * (1024 - original_dim)
-            elif original_dim != 1024:
-                embedding = embedding + [0.0] * (1024 - original_dim)
+            # Generate embeddings for each chunk
+            texts = chunks
+            vectors = []
             
-            vectors.append(embedding)
+            for text in texts:
+                response = client.embeddings.create(
+                    model="text-embedding-ada-002",
+                    input=text
+                )
+                embedding = response.data[0].embedding
+                
+                # Pad embeddings to match Pinecone index dimension (1024)
+                if len(embedding) == 1536:  # OpenAI embeddings
+                    embedding = embedding[:1024]
+                elif len(embedding) != 1024:
+                    embedding = embedding + [0.0] * (1024 - len(embedding))
+                
+                vectors.append(embedding)
+            
+            print(f"✅ Generated {len(vectors)} embeddings using OpenAI")
+            
+        except Exception as e:
+            print(f"❌ OpenAI embeddings failed: {e}")
+            # Create simple dummy embeddings
+            vectors = [[0.1] * 1024 for _ in chunks]
+            print(f"⚠️  Using dummy embeddings")
 
         # Pinecone setup
         pinecone_api_key = os.getenv("PINECONE_API_KEY")
@@ -220,19 +222,17 @@ async def hackrx_run(
                         print(f"🤔 Processing question: {question}")
                         
                         # Generate embedding for the question
-                        if hasattr(embeddings_manager.embeddings, 'embed_query'):
-                            question_embedding = embeddings_manager.embeddings.embed_query(question)
-                        else:
-                            question_embedding = embeddings_manager.embeddings.encode(question).tolist()
+                        response = client.embeddings.create(
+                            model="text-embedding-ada-002",
+                            input=question
+                        )
+                        question_embedding = response.data[0].embedding
                         
                         # Pad embeddings to match Pinecone dimension (1024)
-                        original_dim = len(question_embedding)
-                        if original_dim == 1536:  # OpenAI embeddings
+                        if len(question_embedding) == 1536:  # OpenAI embeddings
                             question_embedding = question_embedding[:1024]
-                        elif original_dim == 384:  # HuggingFace embeddings
-                            question_embedding = question_embedding + [0.0] * (1024 - original_dim)
-                        elif original_dim != 1024:
-                            question_embedding = question_embedding + [0.0] * (1024 - original_dim)
+                        elif len(question_embedding) != 1024:
+                            question_embedding = question_embedding + [0.0] * (1024 - len(question_embedding))
                         
                         # Query Pinecone directly
                         query_response = index.query(
@@ -255,8 +255,39 @@ async def hackrx_run(
                             
                             # Call LLM to generate final answer
                             print(f"🤖 Calling LLM for question: {question}")
-                            from utils.embeddings_utils import call_llm
-                            answer = call_llm(question, context_chunks, similarity_scores)
+                            
+                            # Use OpenRouter for LLM
+                            try:
+                                from openai import OpenAI
+                                openrouter_client = OpenAI(
+                                    base_url="https://openrouter.ai/api/v1",
+                                    api_key=os.getenv("OPENROUTER_API_KEY")
+                                )
+                                
+                                # Create context for LLM
+                                context = "\n\n".join(context_chunks[:3])
+                                
+                                response = openrouter_client.chat.completions.create(
+                                    model="mistralai/mistral-7b-instruct",
+                                    messages=[
+                                        {
+                                            "role": "system",
+                                            "content": "You are a helpful assistant that answers questions based on the provided context. Provide clear, accurate answers using only the information from the context. If the context doesn't contain enough information, say so."
+                                        },
+                                        {
+                                            "role": "user",
+                                            "content": f"Context: {context}\n\nQuestion: {question}\n\nAnswer:"
+                                        }
+                                    ],
+                                    max_tokens=500,
+                                    temperature=0.1
+                                )
+                                
+                                answer = response.choices[0].message.content.strip()
+                                
+                            except Exception as e:
+                                print(f"❌ LLM call failed: {e}")
+                                answer = f"Based on the document: {' '.join(context_chunks[:2])}"
                             
                             # Keep source documents for reference
                             source_docs = [match.metadata.get('text', '')[:100] + "..." for match in query_response.matches[:2]]

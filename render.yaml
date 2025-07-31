@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: policy-analysis-api
+    env: docker
+    plan: starter
+    region: oregon
+    buildCommand: docker build -t policy-api .
+    startCommand: docker run -p $PORT:8000 policy-api
+    envVars:
+      - key: HACKRX_TOKEN
+        value: my_hackrx_token
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false
+      - key: PINECONE_ENVIRONMENT
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+    healthCheckPath: /health
+    autoDeploy: true 

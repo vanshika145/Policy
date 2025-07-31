@@ -21,16 +21,8 @@ langchain-community==0.3.27
 openai>=1.10.0,<2.0.0
 pinecone==7.3.0
 
-# Document processing
+# Document processing (PDF only to avoid Rust compilation)
 PyPDF2==3.0.1
-sentence-transformers==2.2.2
-unstructured==0.11.8
-
-# Machine learning
-transformers>=4.41.0
-torch>=1.11.0
-scikit-learn>=1.2.0
-huggingface-hub>=0.20.0
 
 # HTTP client
 httpx>=0.24.0 

@@ -9,7 +9,7 @@ import httpx
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.document_loaders import PyPDFLoader, UnstructuredFileLoader, UnstructuredEmailLoader
+from langchain_community.document_loaders import PyPDFLoader
 from langchain.schema import Document
 import pinecone
 
@@ -150,34 +150,16 @@ class EmbeddingsManager:
             except Exception as e:
                 error_msg = str(e).lower()
                 if "quota" in error_msg or "429" in error_msg or "insufficient_quota" in error_msg:
-                    logger.warning(f"⚠️  OpenAI quota exceeded, falling back to HuggingFace: {e}")
-                    # Fallback to HuggingFace when quota is exceeded
-                    try:
-                        from langchain_community.embeddings import HuggingFaceEmbeddings
-                        self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-                        logger.info("✅ Using HuggingFace embeddings as fallback (free, no quota limits)")
-                    except ImportError:
-                        logger.error("❌ HuggingFace embeddings not available. Please install sentence-transformers")
-                        raise Exception("OpenAI quota exceeded and HuggingFace not available")
+                    logger.warning(f"⚠️  OpenAI quota exceeded: {e}")
+                    raise Exception("OpenAI quota exceeded - please check your API key and billing")
                 else:
                     logger.warning(f"⚠️  OpenAI embeddings failed (not quota related): {e}")
-                    # Try HuggingFace fallback for other OpenAI errors
-                    try:
-                        from langchain_community.embeddings import HuggingFaceEmbeddings
-                        self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-                        logger.info("✅ Using HuggingFace embeddings as fallback")
-                    except ImportError:
-                        logger.error("❌ HuggingFace embeddings not available")
-                        raise Exception(f"OpenAI failed and HuggingFace not available: {e}")
+                    logger.error("❌ No fallback embeddings available")
+                    raise Exception(f"OpenAI failed and no fallback available: {e}")
         else:
-            # No OpenAI key provided, use HuggingFace
-            try:
-                from langchain_community.embeddings import HuggingFaceEmbeddings
-                self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-                logger.info("✅ Using HuggingFace embeddings (no OpenAI key provided)")
-            except ImportError:
-                logger.error("❌ HuggingFace embeddings not available. Please install sentence-transformers or provide OpenAI API key")
-                raise Exception("No OpenAI API key and HuggingFace not available")
+            # No OpenAI key provided
+            logger.error("❌ No OpenAI API key provided and no fallback available")
+            raise Exception("No OpenAI API key provided")
         
         # Initialize text splitter
         self.text_splitter = RecursiveCharacterTextSplitter(
@@ -244,14 +226,18 @@ class EmbeddingsManager:
                 logger.info(f"Loaded PDF document: {file_path}")
                 
             elif file_extension in ['.docx', '.doc']:
-                loader = UnstructuredFileLoader(str(file_path))
-                documents = loader.load()
-                logger.info(f"Loaded Word document: {file_path}")
+                # Fallback for Word documents - create a simple document
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                documents = [Document(page_content=content, metadata={"source": str(file_path)})]
+                logger.info(f"Loaded Word document (fallback): {file_path}")
                 
             elif file_extension in ['.eml', '.msg']:
-                loader = UnstructuredEmailLoader(str(file_path))
-                documents = loader.load()
-                logger.info(f"Loaded email document: {file_path}")
+                # Fallback for email documents - create a simple document
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                documents = [Document(page_content=content, metadata={"source": str(file_path)})]
+                logger.info(f"Loaded email document (fallback): {file_path}")
                 
             else:
                 raise ValueError(f"Unsupported file type: {file_extension}")

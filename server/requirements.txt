@@ -1,36 +1,18 @@
-# Core FastAPI dependencies
+# Minimal requirements for Render deployment - No Rust dependencies
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 python-dotenv==1.0.0
-
-# Database dependencies
+httpx>=0.24.0
 sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
 alembic==1.13.0
-
-# Authentication and validation
 firebase-admin==6.2.0
 python-jose[cryptography]==3.3.0
 pydantic[email]==2.5.0
-
-# AI and embeddings
 langchain==0.3.27
 langchain-openai==0.3.28
 langchain-community==0.3.27
-openai>=1.10.0,<2.0.0
+openai>=1.10.0
 pinecone==7.3.0
-
-# Document processing
-PyPDF2==3.0.1
-sentence-transformers==2.2.2
-unstructured==0.11.8
-
-# Additional packages for real embeddings
-transformers>=4.41.0
-torch>=1.11.0
-scikit-learn>=1.2.0
-huggingface-hub>=0.20.0
-
-# HTTP client
-httpx>=0.24.0 
+PyPDF2==3.0.1 

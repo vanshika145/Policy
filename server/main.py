@@ -83,7 +83,7 @@ class HackrxRunRequest(BaseModel):
 @app.post("/hackrx/run")
 async def hackrx_run(
     request: Request,
-    body: HackrxRunRequest = Body(...)
+    body: HackrxRunRequest
 ):
     # Validate Authorization header
     auth_header = request.headers.get("Authorization")

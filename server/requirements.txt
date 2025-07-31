@@ -9,7 +9,7 @@ psycopg2-binary==2.9.9
 alembic==1.13.0
 firebase-admin==6.2.0
 python-jose[cryptography]==3.3.0
-pydantic[email]==2.5.0
+pydantic==1.10.13
 langchain==0.3.27
 langchain-openai==0.3.28
 langchain-community==0.3.27

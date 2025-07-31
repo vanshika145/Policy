@@ -4,11 +4,14 @@ uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 python-dotenv==1.0.0
 
-# Database (SQLite only to avoid compilation)
+# Database dependencies
 sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+alembic==1.13.0
 
-# Authentication
+# Authentication and validation
 firebase-admin==6.2.0
+python-jose[cryptography]==3.3.0
 pydantic[email]==2.5.0
 
 # AI and embeddings
@@ -20,6 +23,14 @@ pinecone==7.3.0
 
 # Document processing
 PyPDF2==3.0.1
+sentence-transformers==2.2.2
+unstructured==0.11.8
+
+# Additional packages for real embeddings
+transformers>=4.41.0
+torch>=1.11.0
+scikit-learn>=1.2.0
+huggingface-hub>=0.20.0
 
 # HTTP client
 httpx>=0.24.0 

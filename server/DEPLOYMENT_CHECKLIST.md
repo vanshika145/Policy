@@ -5,8 +5,8 @@
 ### 1. Files Created/Updated
 - [x] `Procfile` - Created for Render deployment
 - [x] `runtime.txt` - Python version specified (3.11.0)
-- [x] `build.sh` - Build script with pip upgrade
-- [x] `requirements.txt` - Simplified to avoid Rust compilation
+- [x] `build.sh` - Build script with local Rust installation
+- [x] `requirements.txt` - Full requirements with Rust compilation support
 - [x] `requirements-minimal.txt` - Minimal requirements for testing
 - [x] `requirements-conservative.txt` - Older, stable versions
 - [x] `main.py` - Updated with proper environment variable handling
@@ -28,18 +28,19 @@
 - [x] `GET /health` - Health check
 - [x] `POST /hackrx/run` - Main webhook endpoint
 - [x] `POST /hackrx/run-simple` - Simple webhook endpoint
-- [x] `POST /upload` - File upload (PDF only)
+- [x] `POST /upload` - File upload (PDF, DOCX, DOC, EML)
 - [x] `POST /query` - Document querying
 
-### 4. Dependencies Included (Minimal)
+### 4. Dependencies Included (Full Support)
 - [x] FastAPI and Uvicorn
-- [x] SQLAlchemy (SQLite fallback)
+- [x] SQLAlchemy and PostgreSQL driver
 - [x] Firebase Admin SDK
 - [x] LangChain and OpenAI
 - [x] Pinecone client
+- [x] Sentence transformers (HuggingFace fallback)
 - [x] HTTP client (httpx)
-- [x] **PDF processing only** (PyPDF2)
-- [x] **No Rust compilation dependencies**
+- [x] **Full document processing** (PDF, DOCX, DOC, EML)
+- [x] **Local Rust installation** for compilation
 
 ### 5. Configuration Updates
 - [x] CORS configured for deployment (allow all origins)
@@ -47,16 +48,16 @@
 - [x] Error handling for missing database
 - [x] Uploads directory creation
 - [x] Proper logging and debugging
-- [x] **PDF-only file support** (to avoid Rust compilation)
-- [x] **SQLite fallback** for database
-- [x] **Pip upgrade** in build script
+- [x] **Full file support** (PDF, DOCX, DOC, EML)
+- [x] **HuggingFace fallback** for embeddings
+- [x] **Local Rust toolchain** installation
 
 ## 🚀 Deployment Steps
 
 ### 1. Push to GitHub
 ```bash
 git add .
-git commit -m "Add pip upgrade and multiple requirements options"
+git commit -m "Add local Rust installation for full package support"
 git push origin main
 ```
 
@@ -65,7 +66,7 @@ git push origin main
 2. Create new Web Service
 3. Connect your GitHub repository
 4. Configure build settings:
-   - **Build Command**: `pip install -r requirements.txt`
+   - **Build Command**: `bash build.sh`
    - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
 5. Set all required environment variables
 6. Deploy
@@ -85,27 +86,26 @@ https://your-app-name.onrender.com/hackrx/run
 
 ### If Build Still Fails - Try These Options:
 
-#### **Option 1: Conservative Requirements**
+#### **Option 1: Use Build Script**
+```bash
+# Use the build script with local Rust installation
+bash build.sh
+```
+
+#### **Option 2: Conservative Requirements**
 ```bash
 # Use older, stable versions
 pip install -r requirements-conservative.txt
 ```
 
-#### **Option 2: Minimal Requirements**
+#### **Option 3: Minimal Requirements**
 ```bash
 # Use absolute minimal requirements
 pip install -r requirements-minimal.txt
 ```
 
-#### **Option 3: Manual Build Steps**
-```bash
-# Run these commands manually in Render build
-pip install --upgrade pip setuptools wheel
-pip install fastapi uvicorn python-dotenv httpx
-```
-
 ### Common Issues:
-1. **Build Failures**: Try conservative or minimal requirements
+1. **Build Failures**: Local Rust installation should resolve this
 2. **Runtime Errors**: Check logs in Render dashboard
 3. **Environment Variables**: Ensure all required vars are set
 4. **Database Issues**: API works with SQLite fallback
@@ -127,11 +127,11 @@ curl -X POST https://your-app.onrender.com/hackrx/run \
 
 ## ⚠️ Important Notes
 
-- **PDF files only** - Word documents and emails not supported
-- **SQLite fallback** - Database works without PostgreSQL
-- **Multiple requirements options** - Try different versions if one fails
-- **Pip upgrade first** - Build script upgrades pip, setuptools, wheel
+- **Full file support** - PDF, DOCX, DOC, EML files supported
+- **Local Rust installation** - Resolves read-only filesystem issues
+- **HuggingFace fallback** - Works without OpenAI API key
+- **Complete functionality** - All features restored
 
 ## ✅ Ready for Deployment!
 
-Your backend is now ready for deployment to Render with multiple fallback options for requirements. 
+Your backend is now ready for deployment to Render with full functionality and local Rust installation to resolve compilation issues. 

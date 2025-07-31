@@ -55,10 +55,13 @@ app.add_middleware(
 UPLOADS_DIR = "uploads"
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
-# Allowed file types (PDF only for now to avoid Rust compilation issues)
-ALLOWED_EXTENSIONS = {".pdf"}
+# Allowed file types
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".doc", ".eml"}
 ALLOWED_MIME_TYPES = {
-    "application/pdf"
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+    "message/rfc822"
 }
 
 HACKRX_TOKEN = os.getenv("HACKRX_TOKEN", "my_hackrx_token")  # Get from environment
@@ -554,7 +557,10 @@ def validate_file(file: UploadFile) -> tuple[str, str]:
     
     # Map extension to file type for database
     file_type_map = {
-        ".pdf": "pdf"
+        ".pdf": "pdf",
+        ".docx": "docx", 
+        ".doc": "doc",
+        ".eml": "eml"
     }
     
     return file_type_map[file_extension], file_extension

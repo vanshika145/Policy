@@ -31,16 +31,6 @@ except ImportError:
 
 from pydantic import BaseModel
 
-# Add LangChain imports for RetrievalQA
-try:
-    from langchain.chains import RetrievalQA
-    from langchain_community.vectorstores import Pinecone
-    from langchain_openai import OpenAIEmbeddings
-    HAS_LANGCHAIN = True
-except ImportError:
-    HAS_LANGCHAIN = False
-    print("Warning: LangChain not available")
-
 # Create database tables (only if database is available)
 if HAS_FULL_DEPS:
     try:

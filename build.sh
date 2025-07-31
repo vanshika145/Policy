@@ -26,4 +26,7 @@ python -c "import uvicorn; print('Uvicorn imported successfully')"
 echo "7. Checking if main can be imported..."
 python -c "import server.main; print('main.py imported successfully')"
 
+echo "8. Verifying uvicorn is in PATH..."
+which uvicorn || echo "uvicorn not found in PATH, but should be available via python -m uvicorn"
+
 echo "Build completed successfully!" 

@@ -8,22 +8,28 @@ echo "Starting build process..."
 echo "1. Upgrading pip, setuptools, and wheel..."
 pip install --upgrade pip setuptools wheel
 
-echo "2. Installing Rust locally in project directory..."
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain stable --profile minimal
+echo "2. Checking existing Rust installation..."
+if command -v rustc &> /dev/null; then
+    echo "✅ Rust is already installed globally"
+    echo "   Rust version: $(rustc --version)"
+    echo "   Cargo version: $(cargo --version)"
+else
+    echo "❌ Rust not found, but skipping local installation due to filesystem constraints"
+    echo "   Will proceed with pip installation only"
+fi
 
-echo "3. Setting Rust environment variables..."
-export CARGO_HOME=$PWD/.cargo
-export RUSTUP_HOME=$PWD/.rustup
-export PATH="$CARGO_HOME/bin:$PATH"
+echo "3. Setting up environment for compilation..."
+# Use existing Rust installation if available
+if command -v rustc &> /dev/null; then
+    export CARGO_HOME=/tmp/.cargo
+    export RUSTUP_HOME=/tmp/.rustup
+    mkdir -p $CARGO_HOME $RUSTUP_HOME
+    echo "✅ Using existing Rust installation with temporary directories"
+else
+    echo "⚠️  No Rust available, will try pip-only installation"
+fi
 
-echo "4. Verifying Rust installation..."
-rustc --version
-cargo --version
-
-echo "5. Updating Rust toolchain..."
-rustup update
-
-echo "6. Installing dependencies with improved strategies..."
+echo "4. Installing dependencies with improved strategies..."
 echo "   Trying full requirements with --no-use-pep517..."
 
 if pip install --no-use-pep517 -r requirements.txt --verbose; then
@@ -44,13 +50,13 @@ else
     fi
 fi
 
-echo "7. Creating uploads directory..."
+echo "5. Creating uploads directory..."
 mkdir -p uploads
 
-echo "8. Checking Python version..."
+echo "6. Checking Python version..."
 python --version
 
-echo "9. Checking if FastAPI can be imported..."
+echo "7. Checking if FastAPI can be imported..."
 if python -c "import fastapi; print('FastAPI imported successfully')"; then
     echo "✅ FastAPI import successful"
 else
@@ -58,7 +64,7 @@ else
     exit 1
 fi
 
-echo "10. Checking if uvicorn can be imported..."
+echo "8. Checking if uvicorn can be imported..."
 if python -c "import uvicorn; print('Uvicorn imported successfully')"; then
     echo "✅ Uvicorn import successful"
 else

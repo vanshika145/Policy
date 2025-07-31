@@ -9,7 +9,7 @@ echo "1. Upgrading pip, setuptools, and wheel..."
 pip install --upgrade pip setuptools wheel
 
 echo "2. Installing all necessary dependencies..."
-pip install --no-use-pep517 fastapi==0.104.1 uvicorn[standard]==0.24.0 python-dotenv==1.0.0 httpx>=0.24.0 sqlalchemy==2.0.23 pydantic[email]==2.5.0 firebase-admin==6.2.0
+pip install fastapi==0.104.1 uvicorn[standard]==0.24.0 python-dotenv==1.0.0 httpx>=0.24.0 sqlalchemy==2.0.23 pydantic[email]==2.5.0 firebase-admin==6.2.0
 
 echo "3. Creating uploads directory..."
 mkdir -p uploads

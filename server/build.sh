@@ -30,22 +30,22 @@ else
 fi
 
 echo "4. Installing dependencies with improved strategies..."
-echo "   Trying full requirements with --no-use-pep517..."
+echo "   Trying full requirements..."
 
-if pip install --no-use-pep517 -r requirements.txt --verbose; then
+if pip install -r requirements.txt --verbose; then
     echo "✅ Full requirements installed successfully"
 else
     echo "❌ Full requirements failed, trying conservative requirements..."
-    if pip install --no-use-pep517 -r requirements-conservative.txt --verbose; then
+    if pip install -r requirements-conservative.txt --verbose; then
         echo "✅ Conservative requirements installed successfully"
     else
         echo "❌ Conservative requirements failed, trying minimal requirements..."
-        if pip install --no-use-pep517 -r requirements-minimal.txt --verbose; then
+        if pip install -r requirements-minimal.txt --verbose; then
             echo "✅ Minimal requirements installed successfully"
         else
             echo "❌ All requirements failed!"
             echo "   Trying individual package installation..."
-            pip install --no-use-pep517 fastapi==0.104.1 uvicorn[standard]==0.24.0 python-dotenv==1.0.0 httpx>=0.24.0
+            pip install fastapi==0.104.1 uvicorn[standard]==0.24.0 python-dotenv==1.0.0 httpx>=0.24.0
         fi
     fi
 fi

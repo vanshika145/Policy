@@ -8,8 +8,8 @@ echo "Starting simple build process..."
 echo "1. Upgrading pip, setuptools, and wheel..."
 pip install --upgrade pip setuptools wheel
 
-echo "2. Installing minimal requirements with --no-use-pep517..."
-pip install --no-use-pep517 fastapi==0.104.1 uvicorn[standard]==0.24.0 python-dotenv==1.0.0 httpx>=0.24.0
+echo "2. Installing minimal requirements..."
+pip install fastapi==0.104.1 uvicorn[standard]==0.24.0 python-dotenv==1.0.0 httpx>=0.24.0
 
 echo "3. Creating uploads directory..."
 mkdir -p uploads

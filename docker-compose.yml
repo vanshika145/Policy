@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./test.db
+      - HACKRX_TOKEN=my_hackrx_token
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_ENVIRONMENT=${PINECONE_ENVIRONMENT}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+    volumes:
+      - ./server/uploads:/app/uploads
+    restart: unless-stopped
+
+  # Optional: Add a database service if needed
+  # db:
+  #   image: postgres:13
+  #   environment:
+  #     POSTGRES_DB: policy_db
+  #     POSTGRES_USER: policy_user
+  #     POSTGRES_PASSWORD: policy_password
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+
+# volumes:
+#   postgres_data: 

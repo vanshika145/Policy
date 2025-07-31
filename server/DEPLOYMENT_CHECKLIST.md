@@ -4,9 +4,9 @@
 
 ### 1. Files Created/Updated
 - [x] `Procfile` - Created for Render deployment
-- [x] `runtime.txt` - Python version specified (3.11.7)
-- [x] `build.sh` - Build script created
-- [x] `requirements.txt` - All dependencies included
+- [x] `runtime.txt` - Python version specified (3.11.0)
+- [x] `build.sh` - Build script created with error handling
+- [x] `requirements.txt` - Fixed compatibility issues
 - [x] `main.py` - Updated with proper environment variable handling
 - [x] `DEPLOYMENT.md` - Deployment guide created
 - [x] `.gitignore` - Proper exclusions set
@@ -29,7 +29,7 @@
 - [x] `POST /upload` - File upload
 - [x] `POST /query` - Document querying
 
-### 4. Dependencies Included
+### 4. Dependencies Included (Fixed)
 - [x] FastAPI and Uvicorn
 - [x] SQLAlchemy and PostgreSQL driver
 - [x] Firebase Admin SDK
@@ -37,7 +37,8 @@
 - [x] Pinecone client
 - [x] Sentence transformers
 - [x] HTTP client (httpx)
-- [x] File processing libraries
+- [x] Document processing libraries
+- [x] **Removed problematic python-magic-bin**
 
 ### 5. Configuration Updates
 - [x] CORS configured for deployment (allow all origins)
@@ -45,13 +46,14 @@
 - [x] Error handling for missing database
 - [x] Uploads directory creation
 - [x] Proper logging and debugging
+- [x] **Python 3.11.0 compatibility**
 
 ## 🚀 Deployment Steps
 
 ### 1. Push to GitHub
 ```bash
 git add .
-git commit -m "Prepare for Render deployment"
+git commit -m "Fix requirements.txt compatibility issues"
 git push origin main
 ```
 
@@ -79,10 +81,11 @@ https://your-app-name.onrender.com/hackrx/run
 ## 🔧 Troubleshooting
 
 ### Common Issues:
-1. **Build Failures**: Check `requirements.txt` has all dependencies
+1. **Build Failures**: Fixed requirements.txt compatibility
 2. **Runtime Errors**: Check logs in Render dashboard
 3. **Environment Variables**: Ensure all required vars are set
 4. **Database Issues**: API works without database for basic functionality
+5. **Python Version**: Using 3.11.0 for better compatibility
 
 ### Testing Commands:
 ```bash
@@ -101,4 +104,4 @@ curl -X POST https://your-app.onrender.com/hackrx/run \
 
 ## ✅ Ready for Deployment!
 
-Your backend is now ready for deployment to Render. The webhook URL format matches the expected format shown in your image. 
+Your backend is now ready for deployment to Render. The requirements.txt compatibility issues have been fixed. 

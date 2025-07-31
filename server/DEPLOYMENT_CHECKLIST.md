@@ -5,9 +5,10 @@
 ### 1. Files Created/Updated
 - [x] `Procfile` - Created for Render deployment
 - [x] `runtime.txt` - Python version specified (3.11.0)
-- [x] `build.sh` - Build script created with error handling
+- [x] `build.sh` - Build script with pip upgrade
 - [x] `requirements.txt` - Simplified to avoid Rust compilation
 - [x] `requirements-minimal.txt` - Minimal requirements for testing
+- [x] `requirements-conservative.txt` - Older, stable versions
 - [x] `main.py` - Updated with proper environment variable handling
 - [x] `DEPLOYMENT.md` - Deployment guide created
 - [x] `.gitignore` - Proper exclusions set
@@ -48,13 +49,14 @@
 - [x] Proper logging and debugging
 - [x] **PDF-only file support** (to avoid Rust compilation)
 - [x] **SQLite fallback** for database
+- [x] **Pip upgrade** in build script
 
 ## 🚀 Deployment Steps
 
 ### 1. Push to GitHub
 ```bash
 git add .
-git commit -m "Use minimal requirements to avoid Rust compilation"
+git commit -m "Add pip upgrade and multiple requirements options"
 git push origin main
 ```
 
@@ -81,13 +83,29 @@ https://your-app-name.onrender.com/hackrx/run
 
 ## 🔧 Troubleshooting
 
-### If Build Still Fails:
-1. **Try minimal requirements**: Use `requirements-minimal.txt` instead
-2. **Check logs**: Look for specific package causing Rust compilation
-3. **Remove problematic packages**: One by one until build succeeds
+### If Build Still Fails - Try These Options:
+
+#### **Option 1: Conservative Requirements**
+```bash
+# Use older, stable versions
+pip install -r requirements-conservative.txt
+```
+
+#### **Option 2: Minimal Requirements**
+```bash
+# Use absolute minimal requirements
+pip install -r requirements-minimal.txt
+```
+
+#### **Option 3: Manual Build Steps**
+```bash
+# Run these commands manually in Render build
+pip install --upgrade pip setuptools wheel
+pip install fastapi uvicorn python-dotenv httpx
+```
 
 ### Common Issues:
-1. **Build Failures**: Try minimal requirements first
+1. **Build Failures**: Try conservative or minimal requirements
 2. **Runtime Errors**: Check logs in Render dashboard
 3. **Environment Variables**: Ensure all required vars are set
 4. **Database Issues**: API works with SQLite fallback
@@ -111,9 +129,9 @@ curl -X POST https://your-app.onrender.com/hackrx/run \
 
 - **PDF files only** - Word documents and emails not supported
 - **SQLite fallback** - Database works without PostgreSQL
-- **Minimal dependencies** - Only essential packages included
-- **Test first** - Try minimal requirements if full requirements fail
+- **Multiple requirements options** - Try different versions if one fails
+- **Pip upgrade first** - Build script upgrades pip, setuptools, wheel
 
 ## ✅ Ready for Deployment!
 
-Your backend is now ready for deployment to Render. If the main requirements.txt still fails, try using requirements-minimal.txt for a basic deployment. 
+Your backend is now ready for deployment to Render with multiple fallback options for requirements. 

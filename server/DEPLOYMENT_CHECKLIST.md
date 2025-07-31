@@ -7,6 +7,7 @@
 - [x] `runtime.txt` - Python version specified (3.11.0)
 - [x] `build.sh` - Build script created with error handling
 - [x] `requirements.txt` - Simplified to avoid Rust compilation
+- [x] `requirements-minimal.txt` - Minimal requirements for testing
 - [x] `main.py` - Updated with proper environment variable handling
 - [x] `DEPLOYMENT.md` - Deployment guide created
 - [x] `.gitignore` - Proper exclusions set
@@ -29,15 +30,15 @@
 - [x] `POST /upload` - File upload (PDF only)
 - [x] `POST /query` - Document querying
 
-### 4. Dependencies Included (Simplified)
+### 4. Dependencies Included (Minimal)
 - [x] FastAPI and Uvicorn
-- [x] SQLAlchemy and PostgreSQL driver
+- [x] SQLAlchemy (SQLite fallback)
 - [x] Firebase Admin SDK
 - [x] LangChain and OpenAI
 - [x] Pinecone client
 - [x] HTTP client (httpx)
 - [x] **PDF processing only** (PyPDF2)
-- [x] **Removed Rust compilation dependencies**
+- [x] **No Rust compilation dependencies**
 
 ### 5. Configuration Updates
 - [x] CORS configured for deployment (allow all origins)
@@ -46,14 +47,14 @@
 - [x] Uploads directory creation
 - [x] Proper logging and debugging
 - [x] **PDF-only file support** (to avoid Rust compilation)
-- [x] **Simplified embeddings** (OpenAI only)
+- [x] **SQLite fallback** for database
 
 ## 🚀 Deployment Steps
 
 ### 1. Push to GitHub
 ```bash
 git add .
-git commit -m "Simplify requirements to avoid Rust compilation issues"
+git commit -m "Use minimal requirements to avoid Rust compilation"
 git push origin main
 ```
 
@@ -80,12 +81,16 @@ https://your-app-name.onrender.com/hackrx/run
 
 ## 🔧 Troubleshooting
 
+### If Build Still Fails:
+1. **Try minimal requirements**: Use `requirements-minimal.txt` instead
+2. **Check logs**: Look for specific package causing Rust compilation
+3. **Remove problematic packages**: One by one until build succeeds
+
 ### Common Issues:
-1. **Build Failures**: Fixed by removing Rust compilation dependencies
+1. **Build Failures**: Try minimal requirements first
 2. **Runtime Errors**: Check logs in Render dashboard
 3. **Environment Variables**: Ensure all required vars are set
-4. **Database Issues**: API works without database for basic functionality
-5. **File Types**: Only PDF files supported to avoid compilation issues
+4. **Database Issues**: API works with SQLite fallback
 
 ### Testing Commands:
 ```bash
@@ -104,10 +109,11 @@ curl -X POST https://your-app.onrender.com/hackrx/run \
 
 ## ⚠️ Important Notes
 
-- **PDF files only** - Word documents and emails not supported to avoid Rust compilation
-- **OpenAI embeddings only** - No HuggingFace fallback to avoid large dependencies
-- **Simplified dependencies** - Removed all packages requiring Rust compilation
+- **PDF files only** - Word documents and emails not supported
+- **SQLite fallback** - Database works without PostgreSQL
+- **Minimal dependencies** - Only essential packages included
+- **Test first** - Try minimal requirements if full requirements fail
 
 ## ✅ Ready for Deployment!
 
-Your backend is now ready for deployment to Render. All Rust compilation issues have been resolved by simplifying the dependencies. 
+Your backend is now ready for deployment to Render. If the main requirements.txt still fails, try using requirements-minimal.txt for a basic deployment. 

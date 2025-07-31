@@ -4,14 +4,11 @@ uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 python-dotenv==1.0.0
 
-# Database dependencies
+# Database (SQLite only to avoid compilation)
 sqlalchemy==2.0.23
-psycopg2-binary==2.9.9
-alembic==1.13.0
 
-# Authentication and validation
+# Authentication
 firebase-admin==6.2.0
-python-jose[cryptography]==3.3.0
 pydantic[email]==2.5.0
 
 # AI and embeddings
@@ -21,7 +18,7 @@ langchain-community==0.3.27
 openai>=1.10.0,<2.0.0
 pinecone==7.3.0
 
-# Document processing (PDF only to avoid Rust compilation)
+# Document processing
 PyPDF2==3.0.1
 
 # HTTP client

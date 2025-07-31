@@ -77,8 +77,6 @@ ALLOWED_MIME_TYPES = {
 
 HACKRX_TOKEN = os.getenv("HACKRX_TOKEN", "my_hackrx_token")  # Get from environment
 
-# Remove the duplicate call_llm function since it's now in embeddings_utils.py
-
 class HackrxRunRequest(BaseModel):
     documents: str
     questions: List[str]
@@ -111,13 +109,207 @@ async def hackrx_run(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to save PDF: {e}")
 
-    # For now, just return a simple response
-    # In a full implementation, you would process the PDF and answer questions
+    # Extract text from PDF
+    extracted_text = None
+    extraction_error = None
+    try:
+        try:
+            import fitz  # PyMuPDF
+            with fitz.open(tmp_pdf_path) as doc:
+                extracted_text = "\n".join(page.get_text() for page in doc)
+        except ImportError:
+            from pdfminer.high_level import extract_text
+            extracted_text = extract_text(tmp_pdf_path)
+    except Exception as e:
+        extraction_error = str(e)
+
+    # Clean up temp file
+    try:
+        import os
+        os.remove(tmp_pdf_path)
+    except Exception:
+        pass
+
+    if not extracted_text or extraction_error:
+        raise HTTPException(status_code=400, detail=f"PDF extraction failed: {extraction_error or 'No text found'}")
+
+    # Process text and create embeddings
+    try:
+        import os
+        from pinecone import Pinecone
+
+        # Simple text splitting
+        chunk_size = 1000
+        chunks = []
+        for i in range(0, len(extracted_text), chunk_size):
+            chunk = extracted_text[i:i + chunk_size]
+            chunks.append(chunk)
+        
+        print(f"📄 Created {len(chunks)} chunks from text")
+
+        # Use embeddings manager
+        from utils.embeddings_utils import get_embeddings_manager
+        
+        embeddings_manager = get_embeddings_manager()
+        if embeddings_manager.embeddings is None:
+            raise HTTPException(status_code=400, detail="No embeddings model available")
+        
+        # Generate embeddings for each chunk
+        texts = chunks
+        vectors = []
+        
+        for text in texts:
+            if hasattr(embeddings_manager.embeddings, 'embed_query'):
+                embedding = embeddings_manager.embeddings.embed_query(text)
+            else:
+                embedding = embeddings_manager.embeddings.encode(text).tolist()
+            
+            # Pad embeddings to match Pinecone index dimension (1024)
+            original_dim = len(embedding)
+            if original_dim == 1536:  # OpenAI embeddings
+                embedding = embedding[:1024]
+            elif original_dim == 384:  # HuggingFace embeddings
+                embedding = embedding + [0.0] * (1024 - original_dim)
+            elif original_dim != 1024:
+                embedding = embedding + [0.0] * (1024 - original_dim)
+            
+            vectors.append(embedding)
+
+        # Pinecone setup
+        pinecone_api_key = os.getenv("PINECONE_API_KEY")
+        pinecone_index_name = os.getenv("PINECONE_INDEX", "policy-document")
+        pc = Pinecone(api_key=pinecone_api_key)
+        
+        # Check if index exists
+        try:
+            index = pc.Index(pinecone_index_name)
+            print(f"✅ Connected to Pinecone index: {pinecone_index_name}")
+        except Exception as e:
+            raise Exception(f"Pinecone index '{pinecone_index_name}' does not exist or is not accessible: {e}")
+
+        # Use a unique namespace for this request
+        namespace = f"hackrx-{uuid.uuid4().hex[:8]}"
+        
+        # Upsert vectors
+        pinecone_vectors = []
+        for i, vec in enumerate(vectors):
+            pinecone_vectors.append({
+                "id": f"chunk-{i}",
+                "values": vec,
+                "metadata": {"text": texts[i]}
+            })
+        
+        try:
+            print(f"Upserting {len(pinecone_vectors)} vectors to namespace: {namespace}")
+            index.upsert(vectors=pinecone_vectors, namespace=namespace)
+            print(f"✅ Successfully upserted vectors to namespace: {namespace}")
+        except Exception as e:
+            print(f"❌ Error upserting vectors: {e}")
+        
+        num_chunks = len(chunks)
+        
+        # Answer questions using similarity
+        answers = []
+        if len(body.questions) > 0:
+            try:
+                print(f"🔍 Answering {len(body.questions)} questions...")
+                
+                # Answer each question using direct Pinecone query
+                for question in body.questions:
+                    try:
+                        print(f"🤔 Processing question: {question}")
+                        
+                        # Generate embedding for the question
+                        if hasattr(embeddings_manager.embeddings, 'embed_query'):
+                            question_embedding = embeddings_manager.embeddings.embed_query(question)
+                        else:
+                            question_embedding = embeddings_manager.embeddings.encode(question).tolist()
+                        
+                        # Pad embeddings to match Pinecone dimension (1024)
+                        original_dim = len(question_embedding)
+                        if original_dim == 1536:  # OpenAI embeddings
+                            question_embedding = question_embedding[:1024]
+                        elif original_dim == 384:  # HuggingFace embeddings
+                            question_embedding = question_embedding + [0.0] * (1024 - original_dim)
+                        elif original_dim != 1024:
+                            question_embedding = question_embedding + [0.0] * (1024 - original_dim)
+                        
+                        # Query Pinecone directly
+                        query_response = index.query(
+                            vector=question_embedding,
+                            top_k=3,
+                            namespace=namespace,
+                            include_metadata=True
+                        )
+                        
+                        print(f"🔍 Found {len(query_response.matches)} matches for question")
+                        
+                        if query_response.matches:
+                            # Extract context chunks and similarity scores
+                            context_chunks = []
+                            similarity_scores = []
+                            
+                            for match in query_response.matches:
+                                context_chunks.append(match.metadata.get('text', ''))
+                                similarity_scores.append(match.score)
+                            
+                            # Call LLM to generate final answer
+                            print(f"🤖 Calling LLM for question: {question}")
+                            from utils.embeddings_utils import call_llm
+                            answer = call_llm(question, context_chunks, similarity_scores)
+                            
+                            # Keep source documents for reference
+                            source_docs = [match.metadata.get('text', '')[:100] + "..." for match in query_response.matches[:2]]
+                        else:
+                            answer = "No relevant information found in the document."
+                            source_docs = []
+                        
+                        answers.append({
+                            "question": question,
+                            "answer": answer,
+                            "source_documents": source_docs
+                        })
+                        
+                        print(f"✅ Answered question: {answer[:50]}...")
+                        
+                    except Exception as e:
+                        print(f"❌ Error answering question '{question}': {e}")
+                        answers.append({
+                            "question": question,
+                            "answer": f"Unable to process question: {str(e)}",
+                            "source_documents": []
+                        })
+                
+                print(f"✅ Successfully answered {len(answers)} questions")
+                
+            except Exception as e:
+                print(f"❌ Error in question answering: {e}")
+                # Create fallback answers
+                for question in body.questions:
+                    answers.append({
+                        "question": question,
+                        "answer": "Unable to process question due to technical issues.",
+                        "source_documents": []
+                    })
+        else:
+            # No questions
+            answers = []
+            
+    except Exception as e:
+        import traceback
+        error_msg = f"Processing failed: {str(e)}"
+        print(f"❌ ERROR: {error_msg}")
+        print(f"❌ TRACEBACK: {traceback.format_exc()}")
+        raise HTTPException(status_code=400, detail=error_msg)
+
     return {
-        "status": "success",
-        "message": "PDF downloaded successfully",
+        "message": "Authorized and processed",
+        "documents": body.documents,
         "questions": body.questions,
-        "answers": [f"Answer to: {q}" for q in body.questions]
+        "num_chunks": num_chunks,
+        "pinecone_namespace": namespace,
+        "extracted_text_preview": extracted_text[:500],
+        "answers": answers
     }
 
 @app.get("/")

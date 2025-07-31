@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Download, FileText, FileCheck2, FileClock, Brain, User, Calendar, ShieldCheck, XCircle, CheckCircle } from 'lucide-react';
 import { Header } from './Header';
+import { apiService } from '@/services/api';
 
 const dummyQuery = {
   mode: 'plain', // or 'form'
@@ -29,14 +30,39 @@ const dummyResult = {
   ],
 };
 
-const dummyDoc = {
-  filename: 'travel_insurance_policy.pdf',
-  uploaded: 'Jan 15, 2025 at 2:30 PM',
-  size: '2.4 MB',
-  summary: 'PDF Document',
-};
-
 export default function ResultsPage() {
+  const [userFiles, setUserFiles] = useState([]);
+  const [selectedFile, setSelectedFile] = useState(null);
+
+  useEffect(() => {
+    loadUserFiles();
+  }, []);
+
+  const loadUserFiles = async () => {
+    try {
+      const files = await apiService.getUserFiles();
+      setUserFiles(files);
+      if (files.length > 0) {
+        setSelectedFile(files[0]);
+      }
+    } catch (error) {
+      console.error('Failed to load user files:', error);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleString();
+  };
+
+  const getFileType = (fileType) => {
+    switch (fileType.toLowerCase()) {
+      case 'pdf': return 'PDF Document';
+      case 'docx': return 'Word Document';
+      case 'doc': return 'Word Document';
+      case 'eml': return 'Email Document';
+      default: return fileType.toUpperCase();
+    }
+  };
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#181a2a] to-[#10111a] text-slate-100">
       <Header />
@@ -45,8 +71,27 @@ export default function ResultsPage() {
         <div className="mb-2">
           <h1 className="text-2xl md:text-3xl font-bold mb-2">Here's What We Found in Your Policy</h1>
         </div>
-        {/* Your Query Card */}
-        <Card className="rounded-2xl p-6 shadow-md bg-gradient-to-br from-[#1e1f2f] to-[#15161f] ai-card-glow mb-2">
+
+        {userFiles.length === 0 ? (
+          <Card className="rounded-2xl p-8 shadow-md bg-gradient-to-br from-[#1e1f2f] to-[#15161f] ai-card-glow">
+            <div className="text-center">
+              <FileText className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">No Documents Found</h3>
+              <p className="text-slate-300 mb-4">
+                You haven't uploaded any documents yet. Upload some documents to see analysis results.
+              </p>
+              <Button 
+                className="btn-ai-primary"
+                onClick={() => window.location.href = '/documents'}
+              >
+                Upload Documents
+              </Button>
+            </div>
+          </Card>
+        ) : (
+          <>
+            {/* Your Query Card */}
+            <Card className="rounded-2xl p-6 shadow-md bg-gradient-to-br from-[#1e1f2f] to-[#15161f] ai-card-glow mb-2">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <Brain className="w-5 h-5 text-primary-glow" />
             Your Query
@@ -110,10 +155,15 @@ export default function ResultsPage() {
               Document Info
             </h2>
             <div className="flex flex-col gap-2 text-base">
-              <div className="flex items-center gap-2"><span className="font-medium">File Name:</span> {dummyDoc.filename}</div>
-              <div className="flex items-center gap-2"><span className="font-medium">Type:</span> {dummyDoc.summary}</div>
-              <div className="flex items-center gap-2"><span className="font-medium">Size:</span> {dummyDoc.size}</div>
-              <div className="flex items-center gap-2"><span className="font-medium">Uploaded:</span> {dummyDoc.uploaded}</div>
+              {selectedFile ? (
+                <>
+                  <div className="flex items-center gap-2"><span className="font-medium">File Name:</span> {selectedFile.filename}</div>
+                  <div className="flex items-center gap-2"><span className="font-medium">Type:</span> {getFileType(selectedFile.file_type)}</div>
+                  <div className="flex items-center gap-2"><span className="font-medium">Uploaded:</span> {formatDate(selectedFile.upload_time)}</div>
+                </>
+              ) : (
+                <div className="text-slate-400">No document selected</div>
+              )}
             </div>
             <div className="flex gap-2 mt-2">
               <Button variant="outline" className="w-full btn-ai-secondary">Re-upload</Button>
@@ -140,6 +190,8 @@ export default function ResultsPage() {
             <span className="text-xs text-muted-foreground">Download Full JSON Result</span>
           </div>
         </Card>
+          </>
+        )}
       </main>
     </div>
   );

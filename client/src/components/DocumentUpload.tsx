@@ -1,9 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { apiService, UploadedFile } from '@/services/api';
+import { EmbeddingsGenerator } from './EmbeddingsGenerator';
 import { 
   Upload, 
   File, 
@@ -15,21 +17,39 @@ import {
   Brain
 } from 'lucide-react';
 
-interface UploadedFile {
-  id: string;
-  name: string;
-  type: string;
-  size: number;
+interface FileWithStatus extends UploadedFile {
   status: 'processing' | 'completed' | 'error';
   extractedText?: string;
   entities?: string[];
 }
 
 export const DocumentUpload = () => {
-  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [files, setFiles] = useState<FileWithStatus[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  // Load existing files on component mount
+  useEffect(() => {
+    loadUserFiles();
+  }, []);
+
+  const loadUserFiles = async () => {
+    try {
+      const userFiles = await apiService.getUserFiles();
+      const filesWithStatus: FileWithStatus[] = userFiles.map(file => ({
+        ...file,
+        status: 'completed' as const,
+        extractedText: `Successfully uploaded ${file.filename}`,
+        entities: ['Document', 'Policy', 'Analysis Ready']
+      }));
+      setFiles(filesWithStatus);
+    } catch (error) {
+      console.error('Failed to load user files:', error);
+      // Don't show error toast for initial load
+    }
+  };
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -57,62 +77,83 @@ export const DocumentUpload = () => {
   };
 
   const processFiles = async (fileList: File[]) => {
-    const newFiles: UploadedFile[] = fileList.map((file, index) => ({
-      id: `file-${Date.now()}-${index}`,
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      status: 'processing'
-    }));
+    setIsLoading(true);
+    
+    for (const file of fileList) {
+      try {
+        setUploadProgress(0);
+        
+        // Create a temporary file entry
+        const tempFile: FileWithStatus = {
+          id: Date.now(),
+          filename: file.name,
+          file_type: file.type,
+          upload_time: new Date().toISOString(),
+          file_path: '',
+          user_id: 0,
+          status: 'processing'
+        };
 
-    setFiles(prev => [...prev, ...newFiles]);
+        setFiles(prev => [...prev, tempFile]);
 
-    // Simulate file processing
-    for (const file of newFiles) {
-      setUploadProgress(0);
-      
-      // Simulate upload progress
-      for (let progress = 0; progress <= 100; progress += 10) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        setUploadProgress(progress);
+        // Simulate upload progress
+        for (let progress = 0; progress <= 90; progress += 10) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          setUploadProgress(progress);
+        }
+
+        // Upload to backend
+        const response = await apiService.uploadFile(file);
+        
+        setUploadProgress(100);
+
+        // Update file with real data from backend
+        setFiles(prev => prev.map(f => 
+          f.id === tempFile.id 
+            ? {
+                ...response.file,
+                status: 'completed' as const,
+                extractedText: `Successfully uploaded ${response.file.filename}`,
+                entities: ['Document', 'Policy', 'Analysis Ready']
+              }
+            : f
+        ));
+
+        toast({
+          title: "Upload Successful",
+          description: `${file.name} has been uploaded successfully`,
+        });
+
+      } catch (error) {
+        console.error('Upload failed:', error);
+        
+        // Update file status to error
+        setFiles(prev => prev.map(f => 
+          f.filename === file.name 
+            ? { ...f, status: 'error' as const }
+            : f
+        ));
+
+        toast({
+          title: "Upload Failed",
+          description: error instanceof Error ? error.message : "Failed to upload file",
+          variant: "destructive",
+        });
       }
-
-      // Simulate AI processing
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Update file status with mock extracted data
-      setFiles(prev => prev.map(f => 
-        f.id === file.id 
-          ? {
-              ...f,
-              status: 'completed',
-              extractedText: `Extracted ${Math.floor(Math.random() * 500 + 100)} lines of text from ${file.name}`,
-              entities: [
-                'Insurance Policy',
-                'Medical Procedures',
-                'Coverage Terms',
-                'Eligibility Criteria',
-                'Geographic Limitations'
-              ]
-            }
-          : f
-      ));
     }
 
-    toast({
-      title: "Files Processed",
-      description: `Successfully processed ${fileList.length} document(s)`,
-    });
+    setIsLoading(false);
+    setUploadProgress(0);
   };
 
-  const removeFile = (fileId: string) => {
+  const removeFile = (fileId: number) => {
     setFiles(prev => prev.filter(f => f.id !== fileId));
   };
 
-  const getFileIcon = (type: string) => {
-    if (type.includes('pdf')) return <File className="w-5 h-5 text-red-400" />;
-    if (type.includes('word') || type.includes('doc')) return <FileText className="w-5 h-5 text-blue-400" />;
-    if (type.includes('email')) return <Mail className="w-5 h-5 text-green-400" />;
+  const getFileIcon = (fileType: string) => {
+    if (fileType.includes('pdf')) return <File className="w-5 h-5 text-red-400" />;
+    if (fileType.includes('word') || fileType.includes('doc')) return <FileText className="w-5 h-5 text-blue-400" />;
+    if (fileType.includes('email') || fileType.includes('eml')) return <Mail className="w-5 h-5 text-green-400" />;
     return <FileText className="w-5 h-5 text-gray-400" />;
   };
 
@@ -219,15 +260,15 @@ export const DocumentUpload = () => {
               {files.map((file) => (
                 <div key={file.id} className="ai-card p-4 hover:bg-background/20 transition-colors">
                   <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3 flex-1">
-                      {getFileIcon(file.type)}
+                                            <div className="flex items-start gap-3 flex-1">
+                      {getFileIcon(file.file_type)}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-medium truncate">{file.name}</h4>
+                          <h4 className="font-medium truncate">{file.filename}</h4>
                           {getStatusIcon(file.status)}
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
-                          <span>{formatFileSize(file.size)}</span>
+                          <span>{file.file_type.toUpperCase()}</span>
                           <Badge variant="outline" className="text-xs">
                             {file.status}
                           </Badge>
@@ -246,6 +287,19 @@ export const DocumentUpload = () => {
                                 {entity}
                               </Badge>
                             ))}
+                          </div>
+                        )}
+                        
+                        {/* Embeddings Generator */}
+                        {file.status === 'completed' && (
+                          <div className="mt-3">
+                            <EmbeddingsGenerator 
+                              file={file}
+                              onEmbeddingsGenerated={() => {
+                                // Refresh files or update status
+                                loadUserFiles();
+                              }}
+                            />
                           </div>
                         )}
                       </div>

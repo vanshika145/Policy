@@ -9,7 +9,7 @@ echo "Upgrading pip, setuptools, and wheel..."
 pip install --upgrade pip setuptools wheel
 
 echo "Installing Rust locally in project directory..."
-curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --default-toolchain stable --profile minimal --target-dir=./rust-target
+curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --default-toolchain stable --profile minimal
 
 echo "Setting Rust environment variables..."
 export CARGO_HOME=$PWD/.cargo

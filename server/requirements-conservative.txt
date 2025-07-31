@@ -1,25 +1,34 @@
-# Conservative requirements with older, stable versions
+# Conservative requirements - avoids problematic packages
 fastapi==0.95.2
 uvicorn[standard]==0.22.0
 python-multipart==0.0.6
 python-dotenv==1.0.0
 
-# Database
+# Database - use SQLite only to avoid compilation
 sqlalchemy==1.4.41
+# psycopg2-binary==2.9.9  # Removed to avoid compilation
+# alembic==1.13.0  # Removed to avoid compilation
 
 # Authentication
 firebase-admin==6.2.0
-pydantic==1.10.8
+# python-jose[cryptography]==3.3.0  # Removed to avoid compilation
+pydantic[email]==1.10.8
 
-# AI and embeddings
+# AI and embeddings - minimal set
 langchain==0.0.267
-langchain-openai==0.0.2
-langchain-community==0.0.10
 openai==0.28.1
 pinecone==2.2.4
 
-# Document processing
+# Document processing - PDF only
 PyPDF2==3.0.1
+# sentence-transformers==2.2.2  # Removed to avoid compilation
+# unstructured==0.11.8  # Removed to avoid compilation
+
+# Additional packages - removed to avoid compilation
+# transformers>=4.41.0  # Removed
+# torch>=1.11.0  # Removed
+# scikit-learn>=1.2.0  # Removed
+# huggingface-hub>=0.20.0  # Removed
 
 # HTTP client
 httpx==0.24.1 

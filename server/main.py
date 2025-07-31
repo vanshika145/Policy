@@ -24,6 +24,14 @@ from routes.embeddings import router as embeddings_router
 from utils.embeddings_utils import get_embeddings_manager
 from pydantic import BaseModel
 
+# Try to import optional dependencies
+try:
+    from utils.embeddings_utils import EmbeddingsManager
+    HAS_EMBEDDINGS = True
+except ImportError:
+    HAS_EMBEDDINGS = False
+    print("Warning: Embeddings functionality not available")
+
 # Add LangChain imports for RetrievalQA
 from langchain.chains import RetrievalQA
 from langchain_community.vectorstores import Pinecone
@@ -55,13 +63,10 @@ app.add_middleware(
 UPLOADS_DIR = "uploads"
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
-# Allowed file types
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".doc", ".eml"}
+# Allowed file types (PDF only for conservative deployment)
+ALLOWED_EXTENSIONS = {".pdf"}
 ALLOWED_MIME_TYPES = {
-    "application/pdf",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/msword",
-    "message/rfc822"
+    "application/pdf"
 }
 
 HACKRX_TOKEN = os.getenv("HACKRX_TOKEN", "my_hackrx_token")  # Get from environment
@@ -557,10 +562,7 @@ def validate_file(file: UploadFile) -> tuple[str, str]:
     
     # Map extension to file type for database
     file_type_map = {
-        ".pdf": "pdf",
-        ".docx": "docx", 
-        ".doc": "doc",
-        ".eml": "eml"
+        ".pdf": "pdf"
     }
     
     return file_type_map[file_extension], file_extension

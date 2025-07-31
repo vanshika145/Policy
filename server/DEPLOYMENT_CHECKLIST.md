@@ -31,16 +31,16 @@
 - [x] `POST /upload` - File upload (PDF, DOCX, DOC, EML)
 - [x] `POST /query` - Document querying
 
-### 4. Dependencies Included (Full Support)
+### 4. Dependencies Included (Progressive Fallback)
 - [x] FastAPI and Uvicorn
-- [x] SQLAlchemy and PostgreSQL driver
+- [x] SQLAlchemy (SQLite fallback)
 - [x] Firebase Admin SDK
 - [x] LangChain and OpenAI
 - [x] Pinecone client
-- [x] Sentence transformers (HuggingFace fallback)
 - [x] HTTP client (httpx)
-- [x] **Full document processing** (PDF, DOCX, DOC, EML)
-- [x] **Local Rust installation** for compilation
+- [x] **PDF processing** (PyPDF2)
+- [x] **Progressive fallback** (full → conservative → minimal)
+- [x] **Local Rust installation** with error handling
 
 ### 5. Configuration Updates
 - [x] CORS configured for deployment (allow all origins)
@@ -48,9 +48,9 @@
 - [x] Error handling for missing database
 - [x] Uploads directory creation
 - [x] Proper logging and debugging
-- [x] **Full file support** (PDF, DOCX, DOC, EML)
-- [x] **HuggingFace fallback** for embeddings
-- [x] **Local Rust toolchain** installation
+- [x] **PDF file support** (with fallback for other types)
+- [x] **Progressive fallback** for dependencies
+- [x] **Local Rust toolchain** with error handling
 
 ## 🚀 Deployment Steps
 
@@ -66,7 +66,7 @@ git push origin main
 2. Create new Web Service
 3. Connect your GitHub repository
 4. Configure build settings:
-   - **Build Command**: `bash build.sh`
+   - **Build Command**: `bash build-simple.sh` (or `bash build.sh` for full features)
    - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
 5. Set all required environment variables
 6. Deploy
@@ -127,10 +127,10 @@ curl -X POST https://your-app.onrender.com/hackrx/run \
 
 ## ⚠️ Important Notes
 
-- **Full file support** - PDF, DOCX, DOC, EML files supported
+- **PDF files primarily** - Other file types have fallback support
+- **Progressive fallback** - Build script tries full → conservative → minimal requirements
 - **Local Rust installation** - Resolves read-only filesystem issues
-- **HuggingFace fallback** - Works without OpenAI API key
-- **Complete functionality** - All features restored
+- **Robust error handling** - Multiple fallback options for deployment
 
 ## ✅ Ready for Deployment!
 

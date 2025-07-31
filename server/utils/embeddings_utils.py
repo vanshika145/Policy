@@ -9,9 +9,16 @@ import httpx
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.document_loaders import PyPDFLoader, UnstructuredFileLoader, UnstructuredEmailLoader
+from langchain_community.document_loaders import PyPDFLoader
 from langchain.schema import Document
 import pinecone
+
+# Try to import additional loaders, but don't fail if not available
+try:
+    from langchain_community.document_loaders import UnstructuredFileLoader, UnstructuredEmailLoader
+    HAS_UNSTRUCTURED = True
+except ImportError:
+    HAS_UNSTRUCTURED = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -244,14 +251,28 @@ class EmbeddingsManager:
                 logger.info(f"Loaded PDF document: {file_path}")
                 
             elif file_extension in ['.docx', '.doc']:
-                loader = UnstructuredFileLoader(str(file_path))
-                documents = loader.load()
-                logger.info(f"Loaded Word document: {file_path}")
+                if HAS_UNSTRUCTURED:
+                    loader = UnstructuredFileLoader(str(file_path))
+                    documents = loader.load()
+                    logger.info(f"Loaded Word document: {file_path}")
+                else:
+                    # Fallback for Word documents - create a simple document
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                    documents = [Document(page_content=content, metadata={"source": str(file_path)})]
+                    logger.info(f"Loaded Word document (fallback): {file_path}")
                 
             elif file_extension in ['.eml', '.msg']:
-                loader = UnstructuredEmailLoader(str(file_path))
-                documents = loader.load()
-                logger.info(f"Loaded email document: {file_path}")
+                if HAS_UNSTRUCTURED:
+                    loader = UnstructuredEmailLoader(str(file_path))
+                    documents = loader.load()
+                    logger.info(f"Loaded email document: {file_path}")
+                else:
+                    # Fallback for email documents - create a simple document
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                    documents = [Document(page_content=content, metadata={"source": str(file_path)})]
+                    logger.info(f"Loaded email document (fallback): {file_path}")
                 
             else:
                 raise ValueError(f"Unsupported file type: {file_extension}")

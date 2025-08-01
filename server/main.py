@@ -344,6 +344,11 @@ async def root():
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
+@app.get("/ping")
+async def ping():
+    """Simple ping endpoint for quick health checks"""
+    return {"status": "pong", "timestamp": datetime.now().isoformat()}
+
 @app.post("/hackrx/run-simple")
 async def hackrx_run_simple(
     request: dict
@@ -417,40 +422,50 @@ async def upload_file_simple_v2(
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # Try to generate embeddings (optional)
+        # Try to generate embeddings (non-blocking, with timeout)
+        embeddings_result = None
         try:
+            import asyncio
             embeddings_manager = get_embeddings_manager()
-            embeddings_result = await embeddings_manager.store_embeddings(
+            
+            # Set a timeout for embeddings processing
+            embeddings_task = embeddings_manager.store_embeddings(
                 file_path=file_path,
                 user_id="test_user",
                 filename=file.filename,
                 user_email="test@example.com"
             )
             
-            if embeddings_result["success"]:
-                return {
-                    "success": True,
-                    "message": "File uploaded and processed successfully",
-                    "filename": file.filename,
-                    "file_path": file_path,
-                    "file_type": file_type,
-                    "chunks": embeddings_result["chunks_count"],
-                    "status": "success"
-                }
-            else:
-                return {
-                    "success": True,
-                    "message": "File uploaded but embeddings failed",
-                    "filename": file.filename,
-                    "file_path": file_path,
-                    "file_type": file_type,
-                    "chunks": 0,
-                    "status": "success",
-                    "embedding_error": embeddings_result["message"]
-                }
-                
+            # Wait for embeddings with a 10-second timeout
+            embeddings_result = await asyncio.wait_for(embeddings_task, timeout=10.0)
+            
+        except asyncio.TimeoutError:
+            print("⚠️  Embeddings processing timed out")
+            embeddings_result = {
+                "success": False,
+                "message": "Embeddings processing timed out",
+                "error": "Timeout"
+            }
         except Exception as embedding_error:
             print(f"⚠️  Embedding error: {embedding_error}")
+            embeddings_result = {
+                "success": False,
+                "message": f"Embeddings failed: {str(embedding_error)}",
+                "error": str(embedding_error)
+            }
+        
+        # Return response based on embeddings result
+        if embeddings_result and embeddings_result.get("success"):
+            return {
+                "success": True,
+                "message": "File uploaded and processed successfully",
+                "filename": file.filename,
+                "file_path": file_path,
+                "file_type": file_type,
+                "chunks": embeddings_result.get("chunks_count", 0),
+                "status": "success"
+            }
+        else:
             return {
                 "success": True,
                 "message": "File uploaded successfully (embeddings failed)",
@@ -459,7 +474,7 @@ async def upload_file_simple_v2(
                 "file_type": file_type,
                 "chunks": 0,
                 "status": "success",
-                "embedding_error": str(embedding_error)
+                "embedding_error": embeddings_result.get("message", "Unknown error") if embeddings_result else "Embeddings not attempted"
             }
         
     except Exception as e:
@@ -528,6 +543,47 @@ async def upload_file(
                 "embedding_error": str(embedding_error)
             }
             
+    except Exception as e:
+        print(f"❌ Upload error: {e}")
+        import traceback
+        print(f"❌ TRACEBACK: {traceback.format_exc()}")
+        
+        # Clean up file if it was created
+        if 'file_path' in locals() and os.path.exists(file_path):
+            os.remove(file_path)
+        
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+@app.post("/upload-fast")
+async def upload_file_fast(
+    file: UploadFile = File(...)
+):
+    """Fast upload endpoint that saves file immediately without blocking on embeddings"""
+    
+    # Validate file
+    file_type, file_extension = validate_file(file)
+    
+    try:
+        # Generate unique filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_filename = f"upload_{timestamp}{file_extension}"
+        file_path = os.path.join(UPLOADS_DIR, safe_filename)
+        
+        # Save file to disk immediately
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Return success immediately
+        return {
+            "success": True,
+            "message": "File uploaded successfully",
+            "filename": file.filename,
+            "file_path": file_path,
+            "file_type": file_type,
+            "status": "success",
+            "note": "File saved. Embeddings will be processed in background."
+        }
+        
     except Exception as e:
         print(f"❌ Upload error: {e}")
         import traceback

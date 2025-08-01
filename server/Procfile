@@ -1,1 +1,1 @@
-web: bash build-docker.sh && bash start.sh 
+web: bash start.sh 

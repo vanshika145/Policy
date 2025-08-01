@@ -1,0 +1,28 @@
+# Full requirements for Railway deployment - Includes Rust dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-dotenv==1.0.0
+httpx>=0.24.0
+pydantic[email]==2.5.0
+sqlalchemy==2.0.23
+firebase-admin==6.2.0
+openai>=1.10.0
+pinecone==7.3.0
+PyPDF2==3.0.1
+
+# AI and ML dependencies - Railway will handle Rust compilation
+langchain==0.3.27
+langchain-openai==0.3.28
+langchain-community==0.3.27
+sentence-transformers==2.2.2
+transformers>=4.41.0
+torch>=1.11.0
+scikit-learn>=1.2.0
+huggingface-hub>=0.20.0
+unstructured>=0.11.8
+
+# Additional dependencies
+python-multipart==0.0.6
+psycopg2-binary==2.9.9
+alembic==1.13.0
+python-jose[cryptography]==3.3.0 

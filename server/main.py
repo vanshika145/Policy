@@ -35,13 +35,13 @@ from pydantic import BaseModel
 if HAS_FULL_DEPS:
     try:
         Base.metadata.create_all(bind=engine)
-        print("✅ Database tables created successfully")
+        print("Database tables created successfully")
     except Exception as e:
-        print(f"⚠️  Database connection failed: {e}")
+        print(f"Database connection failed: {e}")
         print("   The API will work for authentication but file uploads will be limited")
         print("   Install PostgreSQL to enable full functionality")
 else:
-    print("⚠️  Running in minimal mode without database")
+    print("Running in minimal mode without database")
 
 app = FastAPI(title="Policy Analysis API", version="1.0.0")
 

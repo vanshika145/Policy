@@ -15,9 +15,9 @@ DATABASE_URL = os.getenv(
 # Try to create engine, fallback to SQLite if PostgreSQL not available
 try:
     engine = create_engine(DATABASE_URL)
-    print("✅ Database engine created successfully")
+    print("Database engine created successfully")
 except Exception as e:
-    print(f"⚠️  PostgreSQL connection failed: {e}")
+    print(f"PostgreSQL connection failed: {e}")
     print("   Falling back to SQLite for development")
     # Use SQLite as fallback
     engine = create_engine("sqlite:///./test.db")

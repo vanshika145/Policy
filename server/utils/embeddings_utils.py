@@ -184,9 +184,16 @@ class EmbeddingsManager:
         else:
             # No OpenAI key provided, use HuggingFace
             try:
-                from langchain_community.embeddings import HuggingFaceEmbeddings
-                self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-                logger.info("✅ Using HuggingFace embeddings (no OpenAI key provided)")
+                # Try the new langchain-huggingface package first
+                try:
+                    from langchain_huggingface import HuggingFaceEmbeddings
+                    self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+                    logger.info("✅ Using HuggingFace embeddings from langchain-huggingface (no OpenAI key provided)")
+                except ImportError:
+                    # Fallback to langchain-community
+                    from langchain_community.embeddings import HuggingFaceEmbeddings
+                    self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+                    logger.info("✅ Using HuggingFace embeddings from langchain-community (no OpenAI key provided)")
             except ImportError as e:
                 logger.error(f"❌ HuggingFace embeddings not available: {e}")
                 logger.error("Please install sentence-transformers or provide OpenAI API key")

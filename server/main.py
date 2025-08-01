@@ -355,8 +355,11 @@ async def hackrx_run_simple(
 ):
     """
     Process multiple questions and generate answers using embeddings and LLM.
+    Optimized with timeouts to prevent 502 errors.
     """
     try:
+        import asyncio
+        
         # Extract questions from request
         questions = request.get("questions", [])
         documents = request.get("documents", "")
@@ -367,6 +370,11 @@ async def hackrx_run_simple(
                 "message": "No questions provided",
                 "data": []
             }
+        
+        # Limit number of questions to prevent timeout
+        if len(questions) > 10:
+            questions = questions[:10]
+            print(f"⚠️  Limited to first 10 questions to prevent timeout")
         
         # Get embeddings manager
         from utils.embeddings_utils import get_embeddings_manager, call_llm
@@ -379,16 +387,23 @@ async def hackrx_run_simple(
                 "data": []
             }
         
-        # Process each question
+        # Process each question with timeout
         results = []
-        for question in questions:
+        for i, question in enumerate(questions):
             try:
-                # Search for similar documents
-                search_results = embeddings_manager.search_similar(
-                    query=question,
-                    user_id="test_user",
-                    k=3
+                print(f"Processing question {i+1}/{len(questions)}: {question[:50]}...")
+                
+                # Search for similar documents with timeout
+                search_task = asyncio.create_task(
+                    asyncio.to_thread(
+                        embeddings_manager.search_similar,
+                        query=question,
+                        user_id="test_user",
+                        k=2  # Reduced from 3 to 2 for speed
+                    )
                 )
+                
+                search_results = await asyncio.wait_for(search_task, timeout=25.0)
                 
                 if not search_results:
                     results.append({
@@ -408,8 +423,17 @@ async def hackrx_run_simple(
                     similarity_scores.append(result.get("score", 0))
                     sources.append(result.get("metadata", {}).get("filename", "Unknown"))
                 
-                # Generate answer using LLM
-                answer = call_llm(question, context_chunks, similarity_scores)
+                # Generate answer using LLM with timeout
+                llm_task = asyncio.create_task(
+                    asyncio.to_thread(
+                        call_llm,
+                        question,
+                        context_chunks,
+                        similarity_scores
+                    )
+                )
+                
+                answer = await asyncio.wait_for(llm_task, timeout=30.0)
                 
                 results.append({
                     "question": question,
@@ -417,7 +441,17 @@ async def hackrx_run_simple(
                     "sources": sources
                 })
                 
+                print(f"✅ Completed question {i+1}")
+                
+            except asyncio.TimeoutError:
+                print(f"⚠️  Timeout processing question {i+1}")
+                results.append({
+                    "question": question,
+                    "answer": "Processing timed out. Please try with fewer questions or simpler queries.",
+                    "sources": []
+                })
             except Exception as e:
+                print(f"❌ Error processing question {i+1}: {e}")
                 results.append({
                     "question": question,
                     "answer": f"Error processing question: {str(e)}",
@@ -431,6 +465,7 @@ async def hackrx_run_simple(
         }
         
     except Exception as e:
+        print(f"❌ Fatal error in hackrx/run-simple: {e}")
         return {
             "status": "error",
             "message": f"Failed to process questions: {str(e)}",

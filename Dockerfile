@@ -34,7 +34,7 @@ COPY . .
 EXPOSE 8000
 
 # Set environment variables
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app:/app/server
 ENV PORT=8000
 
 # Start command

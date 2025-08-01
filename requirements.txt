@@ -12,7 +12,7 @@ langchain==0.3.27
 langchain-openai==0.3.28
 langchain-community==0.3.27
 
-sentence-transformers==2.2.2
+sentence-transformers>=2.2.0
 transformers>=4.41.0
 torch>=1.11.0
 scikit-learn>=1.2.0

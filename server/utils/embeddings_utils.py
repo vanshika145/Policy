@@ -163,9 +163,12 @@ class EmbeddingsManager:
                         from langchain_community.embeddings import HuggingFaceEmbeddings
                         self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
                         logger.info("✅ Using HuggingFace embeddings as fallback (free, no quota limits)")
-                    except ImportError:
-                        logger.error("❌ HuggingFace embeddings not available. Please install sentence-transformers")
-                        raise Exception("OpenAI quota exceeded and HuggingFace not available")
+                    except ImportError as e:
+                        logger.error(f"❌ HuggingFace embeddings not available: {e}")
+                        logger.error("Please install sentence-transformers")
+                        # Don't raise exception, just set embeddings to None
+                        self.embeddings = None
+                        logger.warning("⚠️  Running without embeddings - uploads will work but search will be limited")
                 else:
                     logger.warning(f"⚠️  OpenAI embeddings failed (not quota related): {e}")
                     # Try HuggingFace fallback for other OpenAI errors
@@ -173,18 +176,23 @@ class EmbeddingsManager:
                         from langchain_community.embeddings import HuggingFaceEmbeddings
                         self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
                         logger.info("✅ Using HuggingFace embeddings as fallback")
-                    except ImportError:
-                        logger.error("❌ HuggingFace embeddings not available")
-                        raise Exception(f"OpenAI failed and HuggingFace not available: {e}")
+                    except ImportError as e:
+                        logger.error(f"❌ HuggingFace embeddings not available: {e}")
+                        # Don't raise exception, just set embeddings to None
+                        self.embeddings = None
+                        logger.warning("⚠️  Running without embeddings - uploads will work but search will be limited")
         else:
             # No OpenAI key provided, use HuggingFace
             try:
                 from langchain_community.embeddings import HuggingFaceEmbeddings
                 self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
                 logger.info("✅ Using HuggingFace embeddings (no OpenAI key provided)")
-            except ImportError:
-                logger.error("❌ HuggingFace embeddings not available. Please install sentence-transformers or provide OpenAI API key")
-                raise Exception("No OpenAI API key and HuggingFace not available")
+            except ImportError as e:
+                logger.error(f"❌ HuggingFace embeddings not available: {e}")
+                logger.error("Please install sentence-transformers or provide OpenAI API key")
+                # Don't raise exception, just set embeddings to None
+                self.embeddings = None
+                logger.warning("⚠️  Running without embeddings - uploads will work but search will be limited")
         
         # Initialize text splitter
         self.text_splitter = RecursiveCharacterTextSplitter(
@@ -328,6 +336,14 @@ class EmbeddingsManager:
                     "error": "Pinecone not initialized"
                 }
             
+            # Check if embeddings are available
+            if self.embeddings is None:
+                return {
+                    "success": False,
+                    "message": "Embeddings not available. Please install sentence-transformers or provide OpenAI API key.",
+                    "error": "Embeddings not initialized"
+                }
+            
             # Generate embeddings and prepare for Pinecone
             vectors_to_upsert = []
             
@@ -416,6 +432,10 @@ class EmbeddingsManager:
         try:
             if not self.pinecone_index:
                 logger.error("Pinecone index not available")
+                return []
+            
+            if self.embeddings is None:
+                logger.error("Embeddings not available")
                 return []
             
             # Generate query embedding

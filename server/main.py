@@ -353,11 +353,89 @@ async def ping():
 async def hackrx_run_simple(
     request: dict
 ):
-    return {
-        "status": "success",
-        "message": "Simple webhook endpoint working",
-        "data": request
-    }
+    """
+    Process multiple questions and generate answers using embeddings and LLM.
+    """
+    try:
+        # Extract questions from request
+        questions = request.get("questions", [])
+        documents = request.get("documents", "")
+        
+        if not questions:
+            return {
+                "status": "error",
+                "message": "No questions provided",
+                "data": []
+            }
+        
+        # Get embeddings manager
+        from utils.embeddings_utils import get_embeddings_manager, call_llm
+        embeddings_manager = get_embeddings_manager()
+        
+        if embeddings_manager.embeddings is None:
+            return {
+                "status": "error",
+                "message": "No embeddings model available",
+                "data": []
+            }
+        
+        # Process each question
+        results = []
+        for question in questions:
+            try:
+                # Search for similar documents
+                search_results = embeddings_manager.search_similar(
+                    query=question,
+                    user_id="test_user",
+                    k=3
+                )
+                
+                if not search_results:
+                    results.append({
+                        "question": question,
+                        "answer": "No relevant information found in the documents.",
+                        "sources": []
+                    })
+                    continue
+                
+                # Extract context from search results
+                context_chunks = []
+                similarity_scores = []
+                sources = []
+                
+                for result in search_results:
+                    context_chunks.append(result.get("content", ""))
+                    similarity_scores.append(result.get("score", 0))
+                    sources.append(result.get("metadata", {}).get("filename", "Unknown"))
+                
+                # Generate answer using LLM
+                answer = call_llm(question, context_chunks, similarity_scores)
+                
+                results.append({
+                    "question": question,
+                    "answer": answer,
+                    "sources": sources
+                })
+                
+            except Exception as e:
+                results.append({
+                    "question": question,
+                    "answer": f"Error processing question: {str(e)}",
+                    "sources": []
+                })
+        
+        return {
+            "status": "success",
+            "message": f"Processed {len(results)} questions",
+            "data": results
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to process questions: {str(e)}",
+            "data": []
+        }
 
 def validate_file(file: UploadFile) -> tuple[str, str]:
     """Validate uploaded file and return file type and extension"""

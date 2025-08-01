@@ -13,12 +13,15 @@ import json
 from dotenv import load_dotenv
 load_dotenv()
 
+# Import schemas first (always available)
+from schemas import UserInfoResponse
+
 # Try to import optional dependencies
 try:
     from sqlalchemy.orm import Session
     from database import get_db, engine
     from models import Base, User
-    from schemas import UploadResponse, UserInfoResponse, UploadedFile as UploadedFileSchema
+    from schemas import UploadResponse, UploadedFile as UploadedFileSchema
     from crud import get_or_create_user, create_uploaded_file, get_user_by_firebase_uid
     from models import UploadedFile
     from firebase_auth import get_firebase_uid, get_user_info_from_token
@@ -381,6 +384,9 @@ async def get_current_user(
     db: Session = Depends(get_db)
 ):
     """Get current user information"""
+    if not HAS_FULL_DEPS:
+        raise HTTPException(status_code=503, detail="Database not available in minimal mode")
+    
     user = get_user_by_firebase_uid(db, firebase_uid)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -539,6 +545,9 @@ async def get_user_files(
     db: Session = Depends(get_db)
 ):
     """Get all files uploaded by the current user"""
+    if not HAS_FULL_DEPS:
+        raise HTTPException(status_code=503, detail="Database not available in minimal mode")
+    
     try:
         user = get_user_by_firebase_uid(db, firebase_uid)
         if not user:
@@ -576,6 +585,9 @@ async def query_documents(
     Returns:
         Intelligent answer with source justification
     """
+    if not HAS_FULL_DEPS:
+        raise HTTPException(status_code=503, detail="Database not available in minimal mode")
+    
     try:
         # Get the user
         user = db.query(User).filter(User.firebase_uid == firebase_uid).first()

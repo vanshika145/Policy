@@ -442,8 +442,8 @@ async def hackrx_run_simple(
                     "sources": []
                 })
         
-    return {
-        "status": "success",
+        return {
+            "status": "success",
             "message": f"Processed {len(results)} questions",
             "data": results
         }

@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: policy-backend
+    env: docker
+    region: oregon
+    plan: starter
+    buildCommand: docker build -t policy-backend .
+    startCommand: docker run -p $PORT:8000 policy-backend
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10
+      - key: PORT
+        value: 8000
+    healthCheckPath: /health
+    autoDeploy: true
+    timeout: 300  # 5 minutes timeout for Docker builds 

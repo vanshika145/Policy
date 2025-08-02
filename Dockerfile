@@ -1,7 +1,7 @@
 # Use slim Python base image with build tools
 FROM python:3.10-slim
 
-# Install system dependencies
+# Install system dependencies for ML libraries
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
@@ -15,6 +15,10 @@ RUN apt-get update && apt-get install -y \
     zlib1g-dev \
     libgl1-mesa-glx \
     libglib2.0-0 \
+    libgomp1 \
+    libblas-dev \
+    liblapack-dev \
+    gfortran \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -30,12 +34,15 @@ RUN pip install -r requirements.txt
 # Now copy your source code
 COPY . .
 
+# Create uploads directory
+RUN mkdir -p uploads
+
 # Expose the port Uvicorn will run on
 EXPOSE 8000
 
 # Set environment variables
-ENV PYTHONPATH=/app:/app/server
+ENV PYTHONPATH=/app
 ENV PORT=8000
 
-# Start command with Render-optimized settings
-CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-keep-alive", "30", "--timeout-graceful-shutdown", "10"] 
+# Start command using our Docker startup script
+CMD ["python", "start_docker.py"] 

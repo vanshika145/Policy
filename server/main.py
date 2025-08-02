@@ -843,16 +843,16 @@ async def upload_file_simple_v2(
         
         # Return response based on embeddings result
         if embeddings_result and embeddings_result.get("success"):
-                return {
-                    "success": True,
-                    "message": "File uploaded and processed successfully",
-                    "filename": file.filename,
-                    "file_path": file_path,
-                    "file_type": file_type,
+            return {
+                "success": True,
+                "message": "File uploaded and processed successfully",
+                "filename": file.filename,
+                "file_path": file_path,
+                "file_type": file_type,
                 "chunks": embeddings_result.get("chunks_count", 0),
-                    "status": "success"
-                }
-            else:
+                "status": "success"
+            }
+        else:
             return {
                 "success": True,
                 "message": "File uploaded successfully (embeddings failed)",

@@ -37,5 +37,5 @@ EXPOSE 8000
 ENV PYTHONPATH=/app:/app/server
 ENV PORT=8000
 
-# Start command with increased timeout
-CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-keep-alive", "120"] 
+# Start command with Render-optimized settings
+CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-keep-alive", "30", "--timeout-graceful-shutdown", "10"] 

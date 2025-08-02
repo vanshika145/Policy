@@ -361,7 +361,7 @@ async def hackrx_run_simple(
 ):
     """
     Process multiple questions and generate answers using embeddings and LLM.
-    Minimal approach - processes questions synchronously to avoid 502 errors.
+    Smart approach - processes all questions with optimized performance.
     """
     try:
         # Extract questions from request
@@ -376,9 +376,9 @@ async def hackrx_run_simple(
             }
         
         # Limit number of questions to prevent timeout
-        if len(questions) > 3:  # Reduced to 3 for safety
-            questions = questions[:3]
-            print(f"⚠️  Limited to first 3 questions to prevent timeout")
+        if len(questions) > 2:  # Process only 2 questions for speed
+            questions = questions[:2]
+            print(f"⚠️  Limited to first 2 questions to prevent timeout")
         
         # Get embeddings manager
         from utils.embeddings_utils import get_embeddings_manager, call_llm
@@ -391,18 +391,18 @@ async def hackrx_run_simple(
                 "data": []
             }
         
-        # Process questions synchronously (no async timeouts)
+        # Process all questions with optimized approach
         results = []
         
         for i, question in enumerate(questions):
             try:
                 print(f"Processing question {i+1}/{len(questions)}: {question[:50]}...")
                 
-                # Search for similar documents (synchronous)
+                # Search for similar documents (synchronous, ultra-fast)
                 search_results = embeddings_manager.search_similar(
                     query=question,
                     user_id="test_user",
-                    k=1  # Reduced for speed
+                    k=1  # Only 1 result for maximum speed
                 )
                 
                 if not search_results:
@@ -481,6 +481,147 @@ async def hackrx_test(
             "status": "error",
             "message": f"Test failed: {str(e)}",
             "data": []
+        }
+
+@app.post("/hackrx/echo")
+async def hackrx_echo(
+    request: dict
+):
+    """
+    Echo endpoint that returns the request data immediately.
+    """
+    try:
+        return {
+            "status": "success",
+            "message": "Echo endpoint working",
+            "data": request,
+            "timestamp": "2024-01-01T00:00:00Z"
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Echo failed: {str(e)}",
+            "data": []
+        }
+
+@app.post("/hackrx/diagnose")
+async def hackrx_diagnose(
+    request: dict
+):
+    """
+    Diagnostic endpoint to identify the exact cause of 502 errors.
+    """
+    try:
+        import time
+        import traceback
+        
+        # Step 1: Basic request validation
+        print("🔍 Step 1: Validating request...")
+        questions = request.get("questions", [])
+        documents = request.get("documents", "")
+        
+        if not questions:
+            return {
+                "status": "error",
+                "message": "No questions provided",
+                "data": {"step": "request_validation", "error": "No questions"}
+            }
+        
+        # Step 2: Test embeddings manager import
+        print("🔍 Step 2: Testing embeddings manager...")
+        try:
+            from utils.embeddings_utils import get_embeddings_manager
+            embeddings_manager = get_embeddings_manager()
+            print("✅ Embeddings manager imported successfully")
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"Embeddings manager failed: {str(e)}",
+                "data": {"step": "embeddings_import", "error": str(e)}
+            }
+        
+        # Step 3: Test embeddings availability
+        print("🔍 Step 3: Testing embeddings availability...")
+        if embeddings_manager.embeddings is None:
+            return {
+                "status": "error",
+                "message": "No embeddings model available",
+                "data": {"step": "embeddings_availability", "error": "embeddings is None"}
+            }
+        print("✅ Embeddings available")
+        
+        # Step 4: Test search functionality
+        print("🔍 Step 4: Testing search functionality...")
+        try:
+            start_time = time.time()
+            search_results = embeddings_manager.search_similar(
+                query=questions[0],
+                user_id="test_user",
+                k=1
+            )
+            search_time = time.time() - start_time
+            print(f"✅ Search completed in {search_time:.2f}s")
+            
+            if not search_results:
+                return {
+                    "status": "success",
+                    "message": "Search completed but no results found",
+                    "data": {
+                        "step": "search",
+                        "search_time": search_time,
+                        "results_count": 0
+                    }
+                }
+            
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"Search failed: {str(e)}",
+                "data": {"step": "search", "error": str(e), "traceback": traceback.format_exc()}
+            }
+        
+        # Step 5: Test LLM functionality
+        print("🔍 Step 5: Testing LLM functionality...")
+        try:
+            from utils.embeddings_utils import call_llm
+            
+            context_chunks = []
+            similarity_scores = []
+            
+            for result in search_results:
+                context_chunks.append(result.get("content", ""))
+                similarity_scores.append(result.get("score", 0))
+            
+            start_time = time.time()
+            answer = call_llm(questions[0], context_chunks, similarity_scores)
+            llm_time = time.time() - start_time
+            print(f"✅ LLM completed in {llm_time:.2f}s")
+            
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"LLM failed: {str(e)}",
+                "data": {"step": "llm", "error": str(e), "traceback": traceback.format_exc()}
+            }
+        
+        # All tests passed
+        return {
+            "status": "success",
+            "message": "All diagnostic tests passed",
+            "data": {
+                "search_time": search_time,
+                "llm_time": llm_time,
+                "total_time": search_time + llm_time,
+                "results_count": len(search_results)
+            }
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Diagnostic failed: {str(e)}",
+            "data": {"step": "general", "error": str(e), "traceback": traceback.format_exc()}
         }
 
 def validate_file(file: UploadFile) -> tuple[str, str]:

@@ -442,8 +442,8 @@ async def hackrx_run_simple(
                     "sources": []
                 })
         
-        return {
-            "status": "success",
+    return {
+        "status": "success",
             "message": f"Processed {len(results)} questions",
             "data": results
         }
@@ -744,7 +744,7 @@ async def hackrx_run_with_file(
             "status": "error",
             "message": f"Failed to process file: {str(e)}",
             "data": []
-        }
+    }
 
 def validate_file(file: UploadFile) -> tuple[str, str]:
     """Validate uploaded file and return file type and extension"""
@@ -843,16 +843,16 @@ async def upload_file_simple_v2(
         
         # Return response based on embeddings result
         if embeddings_result and embeddings_result.get("success"):
-            return {
-                "success": True,
-                "message": "File uploaded and processed successfully",
-                "filename": file.filename,
-                "file_path": file_path,
-                "file_type": file_type,
+                return {
+                    "success": True,
+                    "message": "File uploaded and processed successfully",
+                    "filename": file.filename,
+                    "file_path": file_path,
+                    "file_type": file_type,
                 "chunks": embeddings_result.get("chunks_count", 0),
-                "status": "success"
-            }
-        else:
+                    "status": "success"
+                }
+            else:
             return {
                 "success": True,
                 "message": "File uploaded successfully (embeddings failed)",
@@ -969,8 +969,8 @@ async def upload_file_fast(
             "file_type": file_type,
             "status": "success",
             "note": "File saved. Embeddings will be processed in background."
-        }
-        
+            }
+            
     except Exception as e:
         print(f"❌ Upload error: {e}")
         import traceback

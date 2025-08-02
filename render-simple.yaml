@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: policy-backend
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python start_render.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10
+      - key: PORT
+        value: 8000
+    healthCheckPath: /health
+    autoDeploy: true
+    timeout: 180  # 3 minutes timeout 

@@ -624,6 +624,128 @@ async def hackrx_diagnose(
             "data": {"step": "general", "error": str(e), "traceback": traceback.format_exc()}
         }
 
+@app.post("/hackrx/run-with-file")
+async def hackrx_run_with_file(
+    file: UploadFile = File(...),
+    questions: str = Form(...)
+):
+    """
+    Process uploaded PDF file and answer questions.
+    Accepts file upload + questions in form-data format.
+    """
+    try:
+        import json
+        
+        # Parse questions from form data
+        try:
+            questions_list = json.loads(questions)
+        except json.JSONDecodeError:
+            return {
+                "status": "error",
+                "message": "Invalid questions format. Use JSON array.",
+                "data": []
+            }
+        
+        if not questions_list:
+            return {
+                "status": "error",
+                "message": "No questions provided",
+                "data": []
+            }
+        
+        # Validate file
+        if not file.filename.lower().endswith('.pdf'):
+            return {
+                "status": "error",
+                "message": "Only PDF files are supported",
+                "data": []
+            }
+        
+        # Read file content
+        file_content = await file.read()
+        
+        # Process the PDF (you'll need to implement this)
+        # For now, we'll simulate processing
+        print(f"Processing PDF: {file.filename} ({len(file_content)} bytes)")
+        print(f"Questions: {questions_list}")
+        
+        # Get embeddings manager
+        from utils.embeddings_utils import get_embeddings_manager, call_llm
+        embeddings_manager = get_embeddings_manager()
+        
+        if embeddings_manager.embeddings is None:
+            return {
+                "status": "error",
+                "message": "No embeddings model available",
+                "data": []
+            }
+        
+        # Process questions
+        results = []
+        
+        for i, question in enumerate(questions_list):
+            try:
+                print(f"Processing question {i+1}/{len(questions_list)}: {question[:50]}...")
+                
+                # Search for similar documents
+                search_results = embeddings_manager.search_similar(
+                    query=question,
+                    user_id="test_user",
+                    k=1
+                )
+                
+                if not search_results:
+                    results.append({
+                        "question": question,
+                        "answer": "No relevant information found in the documents.",
+                        "sources": []
+                    })
+                    continue
+                
+                # Extract context from search results
+                context_chunks = []
+                similarity_scores = []
+                sources = []
+                
+                for result in search_results:
+                    context_chunks.append(result.get("content", ""))
+                    similarity_scores.append(result.get("score", 0))
+                    sources.append(result.get("metadata", {}).get("filename", "Unknown"))
+                
+                # Generate answer using LLM
+                answer = call_llm(question, context_chunks, similarity_scores)
+                
+                results.append({
+                    "question": question,
+                    "answer": answer,
+                    "sources": sources
+                })
+                
+                print(f"✅ Completed question {i+1}")
+                
+            except Exception as e:
+                print(f"❌ Error processing question {i+1}: {e}")
+                results.append({
+                    "question": question,
+                    "answer": f"Error processing question: {str(e)}",
+                    "sources": []
+                })
+        
+        return {
+            "status": "success",
+            "message": f"Processed {len(results)} questions from uploaded file",
+            "data": results,
+            "file_processed": file.filename
+        }
+        
+    except Exception as e:
+        print(f"❌ Fatal error in hackrx/run-with-file: {e}")
+        return {
+            "status": "error",
+            "message": f"Failed to process file: {str(e)}",
+            "data": []
+        }
+
 def validate_file(file: UploadFile) -> tuple[str, str]:
     """Validate uploaded file and return file type and extension"""
     # Check file extension

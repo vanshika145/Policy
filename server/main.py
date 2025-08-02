@@ -361,7 +361,7 @@ async def hackrx_run_simple(
 ):
     """
     Process multiple questions and generate answers using embeddings and LLM.
-    Simplified version to prevent 502 errors.
+    Minimal approach - processes questions synchronously to avoid 502 errors.
     """
     try:
         # Extract questions from request
@@ -376,9 +376,9 @@ async def hackrx_run_simple(
             }
         
         # Limit number of questions to prevent timeout
-        if len(questions) > 10:  # Increased to 10 questions
-            questions = questions[:10]
-            print(f"⚠️  Limited to first 10 questions to prevent timeout")
+        if len(questions) > 3:  # Reduced to 3 for safety
+            questions = questions[:3]
+            print(f"⚠️  Limited to first 3 questions to prevent timeout")
         
         # Get embeddings manager
         from utils.embeddings_utils import get_embeddings_manager, call_llm
@@ -391,8 +391,9 @@ async def hackrx_run_simple(
                 "data": []
             }
         
-        # Process each question synchronously (simpler approach)
+        # Process questions synchronously (no async timeouts)
         results = []
+        
         for i, question in enumerate(questions):
             try:
                 print(f"Processing question {i+1}/{len(questions)}: {question[:50]}...")
@@ -401,7 +402,7 @@ async def hackrx_run_simple(
                 search_results = embeddings_manager.search_similar(
                     query=question,
                     user_id="test_user",
-                    k=2  # Increased to 2 for better context
+                    k=1  # Reduced for speed
                 )
                 
                 if not search_results:
@@ -452,6 +453,33 @@ async def hackrx_run_simple(
         return {
             "status": "error",
             "message": f"Failed to process questions: {str(e)}",
+            "data": []
+        }
+
+# Global storage for background results (in production, use Redis or database)
+background_results = {}
+
+@app.post("/hackrx/test")
+async def hackrx_test(
+    request: dict
+):
+    """
+    Simple test endpoint that returns immediately.
+    """
+    try:
+        return {
+            "status": "success",
+            "message": "Test endpoint working",
+            "data": {
+                "timestamp": "2024-01-01T00:00:00Z",
+                "test": True
+            }
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Test failed: {str(e)}",
             "data": []
         }
 
@@ -838,11 +866,11 @@ async def query_documents_simple(
         if embeddings_manager.embeddings is None:
             raise HTTPException(status_code=500, detail="No embeddings model available")
         
-        # Search for similar documents (without user filter)
+        # Search for similar documents (without user filter) - reduced for speed
         results = embeddings_manager.search_similar(
             query=request.query,
             user_id="test_user",  # Use test user ID
-            k=request.k
+            k=min(request.k, 2)  # Limit to 2 results for speed
         )
         
         if not results:

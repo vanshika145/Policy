@@ -1,0 +1,210 @@
+{
+	"info": {
+		"_postman_id": "policy-api-collection",
+		"name": "Policy Analysis API",
+		"description": "Complete API collection for testing Policy Analysis backend",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://policy-2.onrender.com/health",
+					"protocol": "https",
+					"host": ["policy-2", "onrender", "com"],
+					"path": ["health"]
+				}
+			}
+		},
+		{
+			"name": "Ping",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://policy-2.onrender.com/ping",
+					"protocol": "https",
+					"host": ["policy-2", "onrender", "com"],
+					"path": ["ping"]
+				}
+			}
+		},
+		{
+			"name": "Hackrx Test",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"test\": true\n}"
+				},
+				"url": {
+					"raw": "https://policy-2.onrender.com/hackrx/test",
+					"protocol": "https",
+					"host": ["policy-2", "onrender", "com"],
+					"path": ["hackrx", "test"]
+				}
+			}
+		},
+		{
+			"name": "Hackrx Echo",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"message\": \"Hello World\",\n  \"timestamp\": \"2024-01-01T00:00:00Z\"\n}"
+				},
+				"url": {
+					"raw": "https://policy-2.onrender.com/hackrx/echo",
+					"protocol": "https",
+					"host": ["policy-2", "onrender", "com"],
+					"path": ["hackrx", "echo"]
+				}
+			}
+		},
+		{
+			"name": "Hackrx Diagnose",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"questions\": [\"What is the main topic?\"],\n  \"documents\": \"\"\n}"
+				},
+				"url": {
+					"raw": "https://policy-2.onrender.com/hackrx/diagnose",
+					"protocol": "https",
+					"host": ["policy-2", "onrender", "com"],
+					"path": ["hackrx", "diagnose"]
+				}
+			}
+		},
+		{
+			"name": "Hackrx Run Simple",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"questions\": [\"What is the main topic?\", \"What are the key points?\"],\n  \"documents\": \"\"\n}"
+				},
+				"url": {
+					"raw": "https://policy-2.onrender.com/hackrx/run-simple",
+					"protocol": "https",
+					"host": ["policy-2", "onrender", "com"],
+					"path": ["hackrx", "run-simple"]
+				}
+			}
+		},
+		{
+			"name": "Upload File Simple V2",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "file",
+							"type": "file",
+							"src": []
+						}
+					]
+				},
+				"url": {
+					"raw": "https://policy-2.onrender.com/upload-simple-v2",
+					"protocol": "https",
+					"host": ["policy-2", "onrender", "com"],
+					"path": ["upload-simple-v2"]
+				}
+			}
+		},
+		{
+			"name": "Hackrx Run With File",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "file",
+							"type": "file",
+							"src": []
+						},
+						{
+							"key": "questions",
+							"value": "[\"What is the main topic?\", \"What are the key points?\"]",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://policy-2.onrender.com/hackrx/run-with-file",
+					"protocol": "https",
+					"host": ["policy-2", "onrender", "com"],
+					"path": ["hackrx", "run-with-file"]
+				}
+			}
+		},
+		{
+			"name": "Query Simple",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"query\": \"What is the main topic?\",\n  \"k\": 5\n}"
+				},
+				"url": {
+					"raw": "https://policy-2.onrender.com/query-simple",
+					"protocol": "https",
+					"host": ["policy-2", "onrender", "com"],
+					"path": ["query-simple"]
+				}
+			}
+		},
+		{
+			"name": "Debug Pinecone",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://policy-2.onrender.com/debug/pinecone",
+					"protocol": "https",
+					"host": ["policy-2", "onrender", "com"],
+					"path": ["debug", "pinecone"]
+				}
+			}
+		}
+	]
+} 

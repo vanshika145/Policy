@@ -109,8 +109,18 @@ async def hackrx_run(
     """
     # Validate Authorization header
     auth_header = request.headers.get("Authorization")
-    if auth_header != f"Bearer {HACKRX_TOKEN}":
+    expected_auth = f"Bearer {HACKRX_TOKEN}"
+    
+    print(f"🔍 Debug - HACKRX_TOKEN from env: '{HACKRX_TOKEN}'")
+    print(f"🔍 Debug - Expected auth: '{expected_auth}'")
+    print(f"🔍 Debug - Received auth: '{auth_header}'")
+    print(f"🔍 Debug - All headers: {dict(request.headers)}")
+    
+    if auth_header != expected_auth:
+        print(f"⚠️  Authorization failed. Expected: '{expected_auth}', Got: '{auth_header}'")
         raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    print(f"✅ Authorization successful!")
 
     # Download the PDF
     try:
@@ -516,6 +526,20 @@ async def health_check():
 async def ping():
     """Simple ping endpoint for quick health checks"""
     return {"status": "pong", "timestamp": datetime.now().isoformat()}
+
+@app.get("/debug-token")
+async def debug_token():
+    """Debug endpoint to check the current token (for testing only)"""
+    return {
+        "token": HACKRX_TOKEN,
+        "expected_auth": f"Bearer {HACKRX_TOKEN}",
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.get("/show-token")
+async def show_token():
+    """Simple endpoint to show the current token"""
+    return {"token": HACKRX_TOKEN}
 
 if __name__ == "__main__":
     import uvicorn

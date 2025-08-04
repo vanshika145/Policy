@@ -121,6 +121,24 @@ async def hackrx_run(
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     print(f"✅ Authorization successful!")
+    """
+    Main endpoint for processing PDF documents and answering questions.
+    Downloads PDF from URL, extracts text, creates embeddings, and generates answers.
+    """
+    # Validate Authorization header
+    auth_header = request.headers.get("Authorization")
+    expected_auth = f"Bearer {HACKRX_TOKEN}"
+    
+    print(f"🔍 Debug - HACKRX_TOKEN from env: '{HACKRX_TOKEN}'")
+    print(f"🔍 Debug - Expected auth: '{expected_auth}'")
+    print(f"🔍 Debug - Received auth: '{auth_header}'")
+    print(f"🔍 Debug - All headers: {dict(request.headers)}")
+    
+    if auth_header != expected_auth:
+        print(f"⚠️  Authorization failed. Expected: '{expected_auth}', Got: '{auth_header}'")
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    print(f"✅ Authorization successful!")
 
     # Download the PDF
     try:
@@ -167,8 +185,8 @@ async def hackrx_run(
         from pinecone import Pinecone
         
         # Improved text splitting with overlap to capture context better
-        chunk_size = 800   # Smaller for faster processing
-        overlap = 150      # Less overlap for speed
+        chunk_size = 600   # Even smaller for faster processing
+        overlap = 100      # Less overlap for speed
         chunks = []
         
         # Split by sentences first, then by chunks
@@ -208,7 +226,6 @@ async def hackrx_run(
         
         # Lazy load the model only when needed
         def get_model():
-            global _model_instance
             if not hasattr(get_model, '_model_instance') or get_model._model_instance is None:
                 try:
                     from sentence_transformers import SentenceTransformer
@@ -340,10 +357,10 @@ async def hackrx_run(
                         # Query Pinecone directly with lower similarity threshold
                         query_response = index.query(
                             vector=question_embedding_list,
-                            top_k=5,  # Reduced for faster processing
+                            top_k=3,  # Further reduced for faster processing
                             namespace=namespace,
                             include_metadata=True,
-                            score_threshold=0.1   # Higher threshold for faster filtering
+                            score_threshold=0.15   # Higher threshold for faster filtering
                         )
                         
                         print(f"🔍 Found {len(query_response.matches)} matches for question")
@@ -463,8 +480,8 @@ async def hackrx_run(
                                             "content": f"Context: {context}\n\nQuestion: {question}\n\nExtract the EXACT information from the context to answer this question. Include specific numbers, dates, percentages, and conditions when mentioned. If the specific information is not in the context, say 'No relevant information found in the document.'"
                                         }
                                     ],
-                                    max_tokens=600,   # Reduced for faster responses
-                                    temperature=0.0  # Lower temperature for more precise answers
+                                                                         max_tokens=400,   # Further reduced for faster responses
+                                     temperature=0.0  # Lower temperature for more precise answers
                                 )
                                 
                                 answer = response.choices[0].message.content.strip()
@@ -555,6 +572,11 @@ async def debug_token():
 async def show_token():
     """Simple endpoint to show the current token"""
     return {"token": HACKRX_TOKEN}
+
+@app.get("/test-simple")
+async def test_simple():
+    """Simple test endpoint to check if server is responding"""
+    return {"status": "ok", "message": "Server is responding", "timestamp": datetime.now().isoformat()}
 
 if __name__ == "__main__":
     import uvicorn

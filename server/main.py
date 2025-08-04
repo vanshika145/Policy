@@ -200,19 +200,31 @@ async def hackrx_run(
         print(f"📄 First chunk preview: {chunks[0][:200]}...")
         print(f"📄 Last chunk preview: {chunks[-1][:200]}...")
 
-        # Use Hugging Face embeddings
+        # Use Hugging Face embeddings with lazy loading
         # Define texts variable outside try block to avoid scope issues
         texts = chunks
         vectors = []
         model = None
         
+        # Lazy load the model only when needed
+        def get_model():
+            global _model_instance
+            if not hasattr(get_model, '_model_instance') or get_model._model_instance is None:
+                try:
+                    from sentence_transformers import SentenceTransformer
+                    print("🔄 Loading Hugging Face model...")
+                    # Load the model - using a model that generates 1024-dimensional embeddings
+                    get_model._model_instance = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')  # This generates 768-dim embeddings
+                    print("✅ Model loaded successfully")
+                except Exception as e:
+                    print(f"❌ Model loading failed: {e}")
+                    get_model._model_instance = None
+            return get_model._model_instance
+        
         try:
-            from sentence_transformers import SentenceTransformer
-            
-            print("🔄 Loading Hugging Face model...")
-            # Load the model - using a model that generates 1024-dimensional embeddings
-            model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')  # This generates 768-dim embeddings
-            print("✅ Model loaded successfully")
+            model = get_model()
+            if model is None:
+                raise Exception("Failed to load Hugging Face model")
             
             # Test the model with a simple embedding first
             print("🧪 Testing model with sample text...")
@@ -308,7 +320,10 @@ async def hackrx_run(
                         print(f"🤔 Processing question: {question}")
                         
                         # Generate embedding for the question using Hugging Face
-                        question_embedding = model.encode([question], convert_to_tensor=False)[0]
+                        question_model = get_model()
+                        if question_model is None:
+                            raise Exception("Model not available for question embedding")
+                        question_embedding = question_model.encode([question], convert_to_tensor=False)[0]
                         question_embedding_list = question_embedding.tolist()
                         
                         print(f"🔍 Question embedding dimension: {len(question_embedding_list)}")
@@ -516,11 +531,11 @@ async def hackrx_run(
 
 @app.get("/")
 async def root():
-    return {"message": "Policy Analysis API is running!"}
+    return {"status": "ok", "message": "Policy Analysis API is running!"}
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+    return {"status": "healthy", "message": "Policy Analysis API is healthy", "timestamp": datetime.now().isoformat()}
 
 @app.get("/ping")
 async def ping():
@@ -543,4 +558,5 @@ async def show_token():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run(app, host="0.0.0.0", port=port, reload=False) 

@@ -13,4 +13,4 @@ services:
         value: 8000
     healthCheckPath: /health
     autoDeploy: true
-    timeout: 180  # 3 minutes timeout 
+    timeout: 300  # 5 minutes timeout for ML processing 

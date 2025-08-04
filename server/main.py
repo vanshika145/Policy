@@ -14,22 +14,41 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import schemas first (always available)
-from schemas import UserInfoResponse
+try:
+    from schemas import UserInfoResponse
+except ImportError:
+    # Fallback for minimal mode
+    class UserInfoResponse:
+        pass
 
 # Try to import optional dependencies
 try:
     from sqlalchemy.orm import Session
     from database import get_db, engine
     from models import Base, User
-    from schemas import UploadResponse, UploadedFile as UploadedFileSchema
+    try:
+        from schemas import UploadResponse, UploadedFile as UploadedFileSchema
+    except ImportError:
+        # Fallback for minimal mode
+        class UploadResponse:
+            pass
+        class UploadedFileSchema:
+            pass
     from crud import get_or_create_user, create_uploaded_file, get_user_by_firebase_uid
     from models import UploadedFile
     from firebase_auth import get_firebase_uid, get_user_info_from_token
-    from routes.embeddings import router as embeddings_router
-    from utils.embeddings_utils import get_embeddings_manager
-    HAS_FULL_DEPS = True
+    try:
+        from routes.embeddings import router as embeddings_router
+        from utils.embeddings_utils import get_embeddings_manager
+        HAS_FULL_DEPS = True
+    except ImportError:
+        embeddings_router = None
+        get_embeddings_manager = None
+        HAS_FULL_DEPS = False
 except ImportError:
     HAS_FULL_DEPS = False
+    embeddings_router = None
+    get_embeddings_manager = None
     print("Warning: Some dependencies not available, using minimal mode")
 
 from pydantic import BaseModel
@@ -61,6 +80,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include embeddings router if available
+if embeddings_router:
+    app.include_router(embeddings_router)
+    print("✅ Embeddings router included")
+else:
+    print("⚠️  Embeddings router not available")
 
 # Create uploads directory if it doesn't exist
 UPLOADS_DIR = "uploads"
@@ -130,56 +156,111 @@ async def hackrx_run(
     try:
         from pinecone import Pinecone
         
-        # Simple text splitting
-        chunk_size = 1000
+        # Improved text splitting with overlap to capture context better
+        chunk_size = 800   # Smaller for faster processing
+        overlap = 150      # Less overlap for speed
         chunks = []
-        for i in range(0, len(extracted_text), chunk_size):
-            chunk = extracted_text[i:i + chunk_size]
-            chunks.append(chunk)
+        
+        # Split by sentences first, then by chunks
+        sentences = extracted_text.replace('\n', ' ').split('.')
+        current_chunk = ""
+        
+        for sentence in sentences:
+            sentence = sentence.strip() + "."
+            if len(current_chunk) + len(sentence) <= chunk_size:
+                current_chunk += sentence + " "
+            else:
+                if current_chunk.strip():
+                    chunks.append(current_chunk.strip())
+                current_chunk = sentence + " "
+        
+        # Add the last chunk
+        if current_chunk.strip():
+            chunks.append(current_chunk.strip())
+        
+        # If chunks are too few, fall back to original method
+        if len(chunks) < 3:
+            chunks = []
+            for i in range(0, len(extracted_text), chunk_size - overlap):
+                chunk = extracted_text[i:i + chunk_size]
+                if chunk.strip():
+                    chunks.append(chunk)
         
         print(f"📄 Created {len(chunks)} chunks from text")
+        print(f"📄 First chunk preview: {chunks[0][:200]}...")
+        print(f"📄 Last chunk preview: {chunks[-1][:200]}...")
 
-        # Use OpenAI embeddings
+        # Use Hugging Face embeddings
+        # Define texts variable outside try block to avoid scope issues
+        texts = chunks
+        vectors = []
+        model = None
+        
         try:
-            from openai import OpenAI
-            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            from sentence_transformers import SentenceTransformer
             
-            # Generate embeddings for each chunk
-            texts = chunks
-            vectors = []
+            print("🔄 Loading Hugging Face model...")
+            # Load the model - using a model that generates 1024-dimensional embeddings
+            model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')  # This generates 768-dim embeddings
+            print("✅ Model loaded successfully")
             
-            for text in texts:
-                response = client.embeddings.create(
-                    model="text-embedding-ada-002",
-                    input=text
-                )
-                embedding = response.data[0].embedding
+            # Test the model with a simple embedding first
+            print("🧪 Testing model with sample text...")
+            test_embedding = model.encode(["test"], convert_to_tensor=False)
+            print(f"✅ Model test successful - embedding dimension: {len(test_embedding[0])}")
+            
+            # Generate embeddings in batches for efficiency
+            embeddings = model.encode(texts, convert_to_tensor=False)
+            
+            print(f"🔍 Original embedding dimension: {len(embeddings[0])}")
+            
+            for embedding in embeddings:
+                # Convert to list and pad to match Pinecone index dimension (1024)
+                embedding_list = embedding.tolist()
+                if len(embedding_list) != 1024:
+                    if len(embedding_list) > 1024:
+                        embedding_list = embedding_list[:1024]
+                    else:
+                        embedding_list = embedding_list + [0.0] * (1024 - len(embedding_list))
                 
-                # Pad embeddings to match Pinecone index dimension (1024)
-                if len(embedding) == 1536:  # OpenAI embeddings
-                    embedding = embedding[:1024]
-                elif len(embedding) != 1024:
-                    embedding = embedding + [0.0] * (1024 - len(embedding))
-                
-                vectors.append(embedding)
+                vectors.append(embedding_list)
             
-            print(f"✅ Generated {len(vectors)} embeddings using OpenAI")
+            # Debug: Check if vectors are all zeros (which would cause similarity issues)
+            first_vector = vectors[0]
+            zero_count = sum(1 for x in first_vector if x == 0.0)
+            print(f"🔍 First vector has {zero_count}/{len(first_vector)} zero values")
+            print(f"🔍 First vector sample: {first_vector[:10]}")
+            
+            print(f"🔍 Final embedding dimension: {len(vectors[0])}")
+            
+            print(f"✅ Generated {len(vectors)} embeddings using Hugging Face (all-mpnet-base-v2)")
             
         except Exception as e:
-            print(f"❌ OpenAI embeddings failed: {e}")
-            # Create simple dummy embeddings
-            vectors = [[0.1] * 1024 for _ in chunks]
-            print(f"⚠️  Using dummy embeddings")
+            print(f"❌ Hugging Face embeddings failed: {e}")
+            print(f"⚠️  This might be due to network issues or model download problems")
+            error_detail = f"Embedding generation failed: {e}. "
+            error_detail += "This is likely due to network connectivity issues preventing the model from downloading. "
+            error_detail += "Please ensure you have a stable internet connection and try again. "
+            error_detail += "The system requires the Hugging Face model to be downloaded for the first time."
+            raise HTTPException(status_code=500, detail=error_detail)
 
         # Pinecone setup
         pinecone_api_key = os.getenv("PINECONE_API_KEY")
-        pinecone_index_name = os.getenv("PINECONE_INDEX", "policy-document")
+        pinecone_index_name = os.getenv("PINECONE_INDEX", "policy-documents")
         pc = Pinecone(api_key=pinecone_api_key)
         
         # Check if index exists
         try:
             index = pc.Index(pinecone_index_name)
             print(f"✅ Connected to Pinecone index: {pinecone_index_name}")
+            
+            # Get index stats to check dimension
+            try:
+                index_stats = index.describe_index_stats()
+                print(f"🔍 Index stats: {index_stats}")
+            except Exception as e:
+                print(f"⚠️  Could not get index stats: {e}")
+                
         except Exception as e:
             raise Exception(f"Pinecone index '{pinecone_index_name}' does not exist or is not accessible: {e}")
 
@@ -197,6 +278,7 @@ async def hackrx_run(
         
         try:
             print(f"Upserting {len(pinecone_vectors)} vectors to namespace: {namespace}")
+            print(f"🔍 Sample vector metadata: {pinecone_vectors[0]['metadata']}")
             index.upsert(vectors=pinecone_vectors, namespace=namespace)
             print(f"✅ Successfully upserted vectors to namespace: {namespace}")
         except Exception as e:
@@ -215,39 +297,120 @@ async def hackrx_run(
                     try:
                         print(f"🤔 Processing question: {question}")
                         
-                        # Generate embedding for the question
-                        response = client.embeddings.create(
-                            model="text-embedding-ada-002",
-                            input=question
-                        )
-                        question_embedding = response.data[0].embedding
+                        # Generate embedding for the question using Hugging Face
+                        question_embedding = model.encode([question], convert_to_tensor=False)[0]
+                        question_embedding_list = question_embedding.tolist()
+                        
+                        print(f"🔍 Question embedding dimension: {len(question_embedding_list)}")
                         
                         # Pad embeddings to match Pinecone dimension (1024)
-                        if len(question_embedding) == 1536:  # OpenAI embeddings
-                            question_embedding = question_embedding[:1024]
-                        elif len(question_embedding) != 1024:
-                            question_embedding = question_embedding + [0.0] * (1024 - len(question_embedding))
+                        if len(question_embedding_list) != 1024:
+                            if len(question_embedding_list) > 1024:
+                                question_embedding_list = question_embedding_list[:1024]
+                            else:
+                                question_embedding_list = question_embedding_list + [0.0] * (1024 - len(question_embedding_list))
                         
-                        # Query Pinecone directly
+                        print(f"🔍 Padded question embedding dimension: {len(question_embedding_list)}")
+                        
+                        # Query Pinecone directly with lower similarity threshold
                         query_response = index.query(
-                            vector=question_embedding,
-                            top_k=3,
+                            vector=question_embedding_list,
+                            top_k=5,  # Reduced for faster processing
                             namespace=namespace,
-                            include_metadata=True
+                            include_metadata=True,
+                            score_threshold=0.1   # Higher threshold for faster filtering
                         )
                         
                         print(f"🔍 Found {len(query_response.matches)} matches for question")
+                        if len(query_response.matches) > 0:
+                            print(f"🔍 Top match score: {query_response.matches[0].score}")
+                            print(f"🔍 Top match text preview: {query_response.matches[0].metadata.get('text', '')[:150]}...")
+                            print(f"🔍 All match scores: {[match.score for match in query_response.matches[:3]]}")
+                        else:
+                            print(f"🔍 No matches found - this might indicate embedding issues")
+                            # Let's try a simple text search as fallback
+                            print(f"🔍 Trying simple text search for: {question[:50]}...")
+                            simple_matches = []
+                            
+                            # Extract key terms from question for better matching
+                            key_terms = []
+                            question_lower = question.lower()
+                            
+                            # Extract all meaningful words from the question (generic approach)
+                            question_words = [word for word in question_lower.split() if len(word) > 2]
+                            key_terms.extend(question_words)
+                            
+                            for i, text in enumerate(texts):
+                                text_lower = text.lower()
+                                # Count how many key terms are found in this text chunk
+                                matches_found = sum(1 for term in key_terms if term in text_lower)
+                                # Also check for partial matches (substrings)
+                                partial_matches = sum(1 for term in key_terms if any(term in word or word in term for word in text_lower.split()))
+                                total_score = matches_found + (partial_matches * 0.5)
+                                if total_score >= 1.0:  # Higher threshold for faster processing
+                                    simple_matches.append((i, text[:500], total_score))  # Less text for speed
+                            
+                            # Sort by number of matches (highest first)
+                            simple_matches.sort(key=lambda x: x[2], reverse=True)
+                            
+                            print(f"🔍 Simple text search found {len(simple_matches)} potential matches")
+                            if simple_matches:
+                                print(f"🔍 Top match score: {simple_matches[0][2]} terms")
+                                print(f"🔍 Key terms used: {key_terms[:10]}...")  # Show first 10 key terms
+                                print(f"🔍 Sample matches: {[text[:150] for _, text, _ in simple_matches[:2]]}")
                         
                         if query_response.matches:
                             # Extract context chunks and similarity scores
                             context_chunks = []
                             similarity_scores = []
                             
-                            for match in query_response.matches:
+                            # Filter matches by score and take top ones
+                            good_matches = [match for match in query_response.matches if match.score > 0.15]
+                            if not good_matches:
+                                good_matches = query_response.matches[:2]  # Take top 2 if no good matches
+                            
+                            for match in good_matches:
                                 context_chunks.append(match.metadata.get('text', ''))
                                 similarity_scores.append(match.score)
+                        else:
+                            # Fallback to simple text search if no embedding matches
+                            print(f"🔍 Using simple text search fallback")
+                            context_chunks = []
                             
-                            # Call LLM to generate final answer
+                            # Use the simple_matches we already found
+                            if simple_matches:
+                                for i, text, score in simple_matches[:3]:  # Take top 3 matches
+                                    context_chunks.append(text)
+                                    print(f"🔍 Added chunk with {score} matching terms")
+                            else:
+                                                                # Use the same improved key terms logic
+                                key_terms = []
+                                question_lower = question.lower()
+                                
+                                # Extract all meaningful words from the question (generic approach)
+                                question_words = [word for word in question_lower.split() if len(word) > 2]
+                                key_terms.extend(question_words)
+                            
+                            # Find best matching chunks
+                            chunk_scores = []
+                            for i, text in enumerate(texts):
+                                text_lower = text.lower()
+                                matches_found = sum(1 for term in key_terms if term in text_lower)
+                                # Also check for partial matches (substrings)
+                                partial_matches = sum(1 for term in key_terms if any(term in word or word in term for word in text_lower.split()))
+                                total_score = matches_found + (partial_matches * 0.5)
+                                if total_score >= 1.0:  # Higher threshold for faster processing
+                                    chunk_scores.append((i, text, total_score))
+                            
+                            # Sort by match count and take top chunks
+                            chunk_scores.sort(key=lambda x: x[2], reverse=True)
+                            for i, text, score in chunk_scores[:5]:  # Take top 5 chunks
+                                context_chunks.append(text)
+                                if len(context_chunks) >= 3:  # Limit to 3 chunks
+                                    break
+                        
+                        # Call LLM to generate final answer (for both embedding and text search)
+                        if context_chunks:
                             print(f"🤖 Calling LLM for question: {question}")
                             
                             # Use OpenRouter for LLM
@@ -258,23 +421,25 @@ async def hackrx_run(
                                     api_key=os.getenv("OPENROUTER_API_KEY")
                                 )
                                 
-                                # Create context for LLM
-                                context = "\n\n".join(context_chunks[:3])
+                                # Create context for LLM - use fewer chunks for faster processing
+                                context = "\n\n".join(context_chunks[:3])  # Use up to 3 chunks
+                                print(f"🔍 Context being sent to LLM: {context[:500]}...")
+                                print(f"🔍 Number of context chunks: {len(context_chunks)}")
                                 
                                 response = openrouter_client.chat.completions.create(
                                     model="mistralai/mistral-7b-instruct",
                                     messages=[
                                         {
                                             "role": "system",
-                                            "content": "You are a helpful assistant that answers questions based on the provided context. Provide clear, accurate answers using only the information from the context. If the context doesn't contain enough information, say so."
+                                            "content": "You are a document analysis expert. Your task is to extract EXACT information from the provided context to answer questions about any document. Focus on specific numbers, dates, percentages, and precise terms from the document. If the context contains the exact information, provide it word-for-word where possible. If the context doesn't contain the specific information, say 'No relevant information found in the document.' Do not make assumptions or provide generic answers. Be precise and factual. Always include specific numbers, dates, and conditions when they are mentioned in the context."
                                         },
                                         {
                                             "role": "user",
-                                            "content": f"Context: {context}\n\nQuestion: {question}\n\nAnswer:"
+                                            "content": f"Context: {context}\n\nQuestion: {question}\n\nExtract the EXACT information from the context to answer this question. Include specific numbers, dates, percentages, and conditions when mentioned. If the specific information is not in the context, say 'No relevant information found in the document.'"
                                         }
                                     ],
-                                    max_tokens=500,
-                                    temperature=0.1
+                                    max_tokens=600,   # Reduced for faster responses
+                                    temperature=0.0  # Lower temperature for more precise answers
                                 )
                                 
                                 answer = response.choices[0].message.content.strip()
@@ -284,7 +449,10 @@ async def hackrx_run(
                                 answer = f"Based on the document: {' '.join(context_chunks[:2])}"
                             
                             # Keep source documents for reference
-                            source_docs = [match.metadata.get('text', '')[:100] + "..." for match in query_response.matches[:2]]
+                            if query_response.matches:
+                                source_docs = [match.metadata.get('text', '')[:100] + "..." for match in query_response.matches[:2]]
+                            else:
+                                source_docs = [text[:100] + "..." for text in context_chunks[:2]]
                         else:
                             answer = "No relevant information found in the document."
                             source_docs = []
@@ -327,14 +495,13 @@ async def hackrx_run(
         print(f"❌ TRACEBACK: {traceback.format_exc()}")
         raise HTTPException(status_code=400, detail=error_msg)
 
+    # Extract just the answer strings for the expected response format
+    answer_strings = []
+    for answer_obj in answers:
+        answer_strings.append(answer_obj["answer"])
+    
     return {
-        "message": "Authorized and processed",
-        "documents": body.documents,
-        "questions": body.questions,
-        "num_chunks": num_chunks,
-        "pinecone_namespace": namespace,
-        "extracted_text_preview": extracted_text[:500],
-        "answers": answers
+        "answers": answer_strings
     }
 
 @app.get("/")

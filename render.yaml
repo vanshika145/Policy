@@ -10,7 +10,7 @@ services:
       - key: PYTHON_VERSION
         value: 3.10
       - key: PORT
-        value: 10000
+        value: 8000
     healthCheckPath: /health
     autoDeploy: true
     timeout: 300  # 5 minutes timeout for ML processing 

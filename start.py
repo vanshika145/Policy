@@ -6,6 +6,7 @@ import os
 import uvicorn
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
+
+    port = int(os.environ.get("PORT", 8000))  # Changed default to 8000 for ngrok
     print(f"🚀 Starting server on port {port}")
     uvicorn.run("server.main:app", host="0.0.0.0", port=port, reload=False) 

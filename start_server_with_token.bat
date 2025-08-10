@@ -1,0 +1,5 @@
+@echo off
+set HACKRX_TOKEN=166bca9fd80e1ae7e91af903f98706d993a4b9d36e07e7c9db70a67b12342e4b
+cd server
+python main.py
+pause

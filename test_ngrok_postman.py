@@ -40,7 +40,7 @@ def test_ngrok_postman():
             json=payload,
             headers={
                 "Content-Type": "application/json",
-                "Authorization": "Bearer my_hackrx_token"
+                "Authorization": "Bearer 166bca9fd80e1ae7e91af903f98706d993a4b9d36e07e7c9db70a67b12342e4b"
             },
             timeout=60
         )
@@ -83,7 +83,7 @@ def test_ngrok_postman():
     print(f"Method: POST")
     print(f"Headers:")
     print(f"  Content-Type: application/json")
-    print(f"  Authorization: Bearer my_hackrx_token")
+    print(f"  Authorization: Bearer 166bca9fd80e1ae7e91af903f98706d993a4b9d36e07e7c9db70a67b12342e4b")
     print(f"Body (JSON):")
     print(json.dumps(payload, indent=2))
 

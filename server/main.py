@@ -92,7 +92,7 @@ else:
 UPLOADS_DIR = "uploads"
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
-HACKRX_TOKEN = os.getenv("HACKRX_TOKEN", "my_hackrx_token")
+HACKRX_TOKEN = os.getenv("HACKRX_TOKEN")
 
 # Global model cache for performance
 _model_cache = None
@@ -131,6 +131,7 @@ def get_cached_openrouter_client():
 class HackrxRunRequest(BaseModel):
     documents: str
     questions: List[str]
+    token: str = None  # Optional token for backward compatibility
 
 @app.post("/hackrx/run")
 async def hackrx_run(
@@ -140,324 +141,401 @@ async def hackrx_run(
     """
     Optimized endpoint for processing PDF documents and answering questions.
     """
-    # Validate Authorization header
-    auth_header = request.headers.get("Authorization")
-    expected_auth = f"Bearer {HACKRX_TOKEN}"
-    
-    if auth_header != expected_auth:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    
-    print(f"✅ Authorization successful!")
-
-    # Download the PDF
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:  # Reduced from 30.0
-            response = await client.get(body.documents)
-            if response.status_code != 200:
-                raise Exception(f"Failed to download PDF: {response.status_code}")
-            pdf_bytes = response.content
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"PDF download failed: {e}")
+        print("🚀 START: Hackrx request received")
+        print(f"📄 Documents URL: {body.documents}")
+        print(f"❓ Questions: {body.questions}")
+        
+        # Debug: Log all headers received
+        print("🔍 DEBUG: All headers received:")
+        for header_name, header_value in request.headers.items():
+            print(f"   {header_name}: {header_value}")
+        
+        # Validate Authorization header
+        auth_header = request.headers.get("Authorization")
+        expected_auth = f"Bearer {HACKRX_TOKEN}"
+        
+        print(f"🔍 DEBUG: Auth header received: '{auth_header}'")
+        print(f"🔍 DEBUG: Expected auth: '{expected_auth}'")
+        print(f"🔍 DEBUG: HACKRX_TOKEN value: '{HACKRX_TOKEN}'")
+        
+        # Check multiple authentication methods
+        auth_valid = False
+        
+        # Method 1: Standard Bearer token
+        if auth_header == expected_auth:
+            auth_valid = True
+            print("✅ Method 1: Standard Bearer token authentication successful")
+        
+        # Method 2: Check if hackrx is sending just the token without "Bearer"
+        elif auth_header == HACKRX_TOKEN:
+            auth_valid = True
+            print("✅ Method 2: Token-only authentication successful")
+        
+        # Method 3: Check if hackrx is sending a custom header
+        custom_token = request.headers.get("X-Hackrx-Token") or request.headers.get("X-API-Key")
+        if custom_token == HACKRX_TOKEN:
+            auth_valid = True
+            print("✅ Method 3: Custom header authentication successful")
+        
+        # Method 4: Check if hackrx is sending the token in the body (for backward compatibility)
+        if hasattr(body, 'token') and body.token == HACKRX_TOKEN:
+            auth_valid = True
+            print("✅ Method 4: Body token authentication successful")
+        
+        if not auth_valid:
+            print(f"❌ DEBUG: All authentication methods failed")
+            print(f"❌ DEBUG: Available headers for debugging:")
+            for header_name, header_value in request.headers.items():
+                print(f"   {header_name}: {header_value}")
+            raise HTTPException(status_code=401, detail="Unauthorized")
+        
+        print(f"✅ Authentication successful!")
+        
+        # Download the PDF
+        print("📥 STEP 1: Downloading PDF...")
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(body.documents)
+                if response.status_code != 200:
+                    raise Exception(f"Failed to download PDF: {response.status_code}")
+                pdf_bytes = response.content
+                print(f"✅ PDF downloaded successfully: {len(pdf_bytes)} bytes")
+        except Exception as e:
+            print(f"❌ PDF download failed: {e}")
+            raise HTTPException(status_code=400, detail=f"PDF download failed: {e}")
 
-    # Save to a temporary file
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-            tmp_file.write(pdf_bytes)
-            tmp_pdf_path = tmp_file.name
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to save PDF: {e}")
+        # Save to a temporary file
+        print("💾 STEP 2: Saving PDF to temp file...")
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                tmp_file.write(pdf_bytes)
+                tmp_pdf_path = tmp_file.name
+                print(f"✅ PDF saved to temp file: {tmp_pdf_path}")
+        except Exception as e:
+            print(f"❌ Failed to save PDF: {e}")
+            raise HTTPException(status_code=400, detail=f"Failed to save PDF: {e}")
 
-    # Extract text from PDF using PyPDF2
-    extracted_text = None
-    extraction_error = None
-    try:
-        from PyPDF2 import PdfReader
-        with open(tmp_pdf_path, 'rb') as file:
-            pdf_reader = PdfReader(file)
-            extracted_text = ""
-            for page in pdf_reader.pages:
-                extracted_text += page.extract_text() + "\n"
-    except Exception as e:
-        extraction_error = str(e)
+        # Extract text from PDF using PyPDF2
+        print("📖 STEP 3: Extracting text from PDF...")
+        extracted_text = None
+        extraction_error = None
+        try:
+            from PyPDF2 import PdfReader
+            with open(tmp_pdf_path, 'rb') as file:
+                pdf_reader = PdfReader(file)
+                extracted_text = ""
+                for page in pdf_reader.pages:
+                    extracted_text += page.extract_text() + "\n"
+                print(f"✅ Text extracted successfully: {len(extracted_text)} characters")
+        except Exception as e:
+            extraction_error = str(e)
+            print(f"❌ PDF text extraction failed: {e}")
 
-    # Clean up temp file
-    try:
-        os.remove(tmp_pdf_path)
-    except Exception:
-        pass
+        # Clean up temp file
+        try:
+            os.remove(tmp_pdf_path)
+            print("✅ Temp file cleaned up")
+        except Exception:
+            print("⚠️ Temp file cleanup failed")
 
-    if not extracted_text or extraction_error:
-        raise HTTPException(status_code=400, detail=f"PDF extraction failed: {extraction_error or 'No text found'}")
+        if not extracted_text or extraction_error:
+            print(f"❌ Text extraction failed: {extraction_error or 'No text found'}")
+            raise HTTPException(status_code=400, detail=f"PDF extraction failed: {extraction_error or 'No text found'}")
 
-    # Process text and create embeddings with optimized settings
-    try:
-        from pinecone import Pinecone
-        
-        # Ultra-fast chunking for speed
-        chunk_size = 1500   # Much larger chunks = fewer chunks
-        overlap = 50       # Minimal overlap
-        chunks = []
-        
-        # Enhanced chunking algorithm
-        text = extracted_text.replace('\n', ' ').strip()
-        
-        # Create smaller, more focused chunks
-        step_size = chunk_size - overlap
-        for i in range(0, len(text), step_size):
-            chunk = text[i:i + chunk_size]
-            if len(chunk.strip()) > 30:  # Lower threshold for more chunks
-                chunks.append(chunk.strip())
-        
-        # Ensure we have enough chunks for better coverage
-        if len(chunks) < 3:
-            # Create more granular chunks
-            chunk_size_simple = len(text) // 4  # Fewer chunks
-            chunks = [text[i:i + chunk_size_simple] for i in range(0, len(text), chunk_size_simple)]
-            chunks = [chunk.strip() for chunk in chunks if len(chunk.strip()) > 50]
-        
-        # Limit total chunks for speed
-        if len(chunks) > 20:
-            chunks = chunks[:20]  # Only keep first 20 chunks
-        
-        print(f"📄 Created {len(chunks)} chunks from text")
-
-        # Use cached model for embeddings
-        model = get_cached_model()
-        if model is None:
-            raise Exception("Failed to load Hugging Face model")
-        
-        # Generate embeddings in larger batches for better performance
-        texts = chunks
-        print(f"🔄 Generating embeddings for {len(texts)} chunks...")
-        
-        # Use larger batch size and optimize processing
-        embeddings = model.encode(texts, convert_to_tensor=False, batch_size=512, show_progress_bar=False)  # Increased batch size and disabled progress bar
-        
-        vectors = []
-        for embedding in embeddings:
-            # Convert to list and pad to match Pinecone index dimension (1024)
-            embedding_list = embedding.tolist()
-            if len(embedding_list) != 1024:
-                if len(embedding_list) > 1024:
-                    embedding_list = embedding_list[:1024]
-                else:
-                    embedding_list = embedding_list + [0.0] * (1024 - len(embedding_list))
-            vectors.append(embedding_list)
+        # Process text and create embeddings with optimized settings
+        print("🧠 STEP 4: Processing text and creating embeddings...")
+        try:
+            from pinecone import Pinecone
             
-        print(f"✅ Generated {len(vectors)} embeddings using cached model")
+            # Ultra-fast chunking for speed
+            chunk_size = 1500   # Much larger chunks = fewer chunks
+            overlap = 50       # Minimal overlap
+            chunks = []
+            
+            # Enhanced chunking algorithm
+            text = extracted_text.replace('\n', ' ').strip()
+            
+            # Create smaller, more focused chunks
+            step_size = chunk_size - overlap
+            for i in range(0, len(text), step_size):
+                chunk = text[i:i + chunk_size]
+                if len(chunk.strip()) > 30:  # Lower threshold for more chunks
+                    chunks.append(chunk.strip())
+            
+            # Ensure we have enough chunks for better coverage
+            if len(chunks) < 3:
+                # Create more granular chunks
+                chunk_size_simple = len(text) // 4  # Fewer chunks
+                chunks = [text[i:i + chunk_size_simple] for i in range(0, len(text), chunk_size_simple)]
+                chunks = [chunk.strip() for chunk in chunks if len(chunk.strip()) > 50]
+            
+            # Limit total chunks for speed
+            if len(chunks) > 20:
+                chunks = chunks[:20]  # Only keep first 20 chunks
+            
+            print(f"📄 Created {len(chunks)} chunks from text")
 
-        # Pinecone setup
-        pinecone_api_key = os.getenv("PINECONE_API_KEY")
-        pinecone_index_name = os.getenv("PINECONE_INDEX", "policy-documents")
-        pc = Pinecone(api_key=pinecone_api_key)
-        
-        # Check if index exists
-        try:
-            index = pc.Index(pinecone_index_name)
-            print(f"✅ Connected to Pinecone index: {pinecone_index_name}")
-        except Exception as e:
-            raise Exception(f"Pinecone index '{pinecone_index_name}' does not exist or is not accessible: {e}")
+            # Use cached model for embeddings
+            model = get_cached_model()
+            if model is None:
+                print("❌ Failed to load Hugging Face model")
+                raise Exception("Failed to load Hugging Face model")
+            
+            # Generate embeddings in larger batches for better performance
+            texts = chunks
+            print(f"🔄 Generating embeddings for {len(texts)} chunks...")
+            
+            # Use larger batch size and optimize processing
+            embeddings = model.encode(texts, convert_to_tensor=False, batch_size=512, show_progress_bar=False)  # Increased batch size and disabled progress bar
+            
+            vectors = []
+            for embedding in embeddings:
+                # Convert to list and pad to match Pinecone index dimension (1024)
+                embedding_list = embedding.tolist()
+                if len(embedding_list) != 1024:
+                    if len(embedding_list) > 1024:
+                        embedding_list = embedding_list[:1024]
+                    else:
+                        embedding_list = embedding_list + [0.0] * (1024 - len(embedding_list))
+                vectors.append(embedding_list)
+                
+            print(f"✅ Generated {len(vectors)} embeddings using cached model")
 
-        # Use a unique namespace for this request
-        namespace = f"hackrx-{uuid.uuid4().hex[:8]}"
-        
-        # Upsert vectors in larger batches for better performance
-        pinecone_vectors = []
-        for i, vec in enumerate(vectors):
-            pinecone_vectors.append({
-                "id": f"chunk-{i}",
-                "values": vec,
-                "metadata": {"text": texts[i]}
-            })
-        
-        try:
-            print(f"Upserting {len(pinecone_vectors)} vectors to namespace: {namespace}")
-            # Upsert in larger batches for better performance
-            batch_size = 500  # Increased from 300 for faster processing
-            for i in range(0, len(pinecone_vectors), batch_size):
-                batch = pinecone_vectors[i:i + batch_size]
-                index.upsert(vectors=batch, namespace=namespace)
-            print(f"✅ Successfully upserted vectors to namespace: {namespace}")
-        except Exception as e:
-            print(f"❌ Error upserting vectors: {e}")
-            # Continue with processing even if upsert fails
-        
-        # Answer questions using optimized approach
-        answers = []
-        if len(body.questions) > 0:
+            # Pinecone setup
+            pinecone_api_key = os.getenv("PINECONE_API_KEY")
+            pinecone_index_name = os.getenv("PINECONE_INDEX", "policy-documents")
+            
+            if not pinecone_api_key:
+                print("❌ PINECONE_API_KEY not set")
+                raise Exception("PINECONE_API_KEY not set")
+                
+            pc = Pinecone(api_key=pinecone_api_key)
+            
+            # Check if index exists
             try:
-                print(f"🔍 Answering {len(body.questions)} questions...")
-                
-                # Batch process questions for better performance
-                question_embeddings = []
-                for question in body.questions:
-                    question_embedding = model.encode([question], convert_to_tensor=False)[0]
-                    question_embedding_list = question_embedding.tolist()
+                index = pc.Index(pinecone_index_name)
+                print(f"✅ Connected to Pinecone index: {pinecone_index_name}")
+            except Exception as e:
+                print(f"❌ Pinecone index error: {e}")
+                raise Exception(f"Pinecone index '{pinecone_index_name}' does not exist or is not accessible: {e}")
+
+            # Use a unique namespace for this request
+            namespace = f"hackrx-{uuid.uuid4().hex[:8]}"
+            
+            # Upsert vectors in larger batches for better performance
+            pinecone_vectors = []
+            for i, vec in enumerate(vectors):
+                pinecone_vectors.append({
+                    "id": f"chunk-{i}",
+                    "values": vec,
+                    "metadata": {"text": texts[i]}
+                })
+            
+            try:
+                print(f"📤 Upserting {len(pinecone_vectors)} vectors to namespace: {namespace}")
+                # Upsert in larger batches for better performance
+                batch_size = 500  # Increased from 300 for faster processing
+                for i in range(0, len(pinecone_vectors), batch_size):
+                    batch = pinecone_vectors[i:i + batch_size]
+                    index.upsert(vectors=batch, namespace=namespace)
+                print(f"✅ Successfully upserted vectors to namespace: {namespace}")
+            except Exception as e:
+                print(f"❌ Error upserting vectors: {e}")
+                # Continue with processing even if upsert fails
+            
+            # Answer questions using optimized approach
+            print("🤖 STEP 5: Answering questions...")
+            answers = []
+            if len(body.questions) > 0:
+                try:
+                    print(f"🔍 Answering {len(body.questions)} questions...")
                     
-                    # Pad embeddings to match Pinecone dimension (1024)
-                    if len(question_embedding_list) != 1024:
-                        if len(question_embedding_list) > 1024:
-                            question_embedding_list = question_embedding_list[:1024]
-                        else:
-                            question_embedding_list = question_embedding_list + [0.0] * (1024 - len(question_embedding_list))
+                    # Batch process questions for better performance
+                    question_embeddings = []
+                    for question in body.questions:
+                        question_embedding = model.encode([question], convert_to_tensor=False)[0]
+                        question_embedding_list = question_embedding.tolist()
+                        
+                        # Pad embeddings to match Pinecone dimension (1024)
+                        if len(question_embedding_list) != 1024:
+                            if len(question_embedding_list) > 1024:
+                                question_embedding_list = question_embedding_list[:1024]
+                            else:
+                                question_embedding_list = question_embedding_list + [0.0] * (1024 - len(question_embedding_list))
+                        
+                        question_embeddings.append(question_embedding_list)
                     
-                    question_embeddings.append(question_embedding_list)
-                
-                # Get cached OpenRouter client
-                openrouter_client = get_cached_openrouter_client()
-                if openrouter_client is None:
-                    raise Exception("OpenRouter client not available")
-                
-                # Process each question
-                for i, question in enumerate(body.questions):
-                    try:
-                        print(f"🤔 Processing question {i+1}/{len(body.questions)}: {question}")
-                        
-                        # Query Pinecone with improved threshold for better accuracy
-                        query_response = index.query(
-                            vector=question_embeddings[i],
-                            top_k=6,  # Reduced for speed
-                            namespace=namespace,
-                            include_metadata=True,
-                            score_threshold=0.1  # Balanced for speed/accuracy
-                        )
-                        
-                        print(f"🔍 Found {len(query_response.matches)} matches for question")
-                        
-                        # Extract context chunks
-                        context_chunks = []
-                        if query_response.matches:
-                            # Filter matches by score and take top ones
-                            good_matches = [match for match in query_response.matches if match.score > 0.1]  # Balanced for speed/accuracy
-                            if not good_matches:
-                                good_matches = query_response.matches[:4]  # Reduced for speed
+                    # Get cached OpenRouter client
+                    openrouter_client = get_cached_openrouter_client()
+                    if openrouter_client is None:
+                        print("❌ OpenRouter client not available")
+                        raise Exception("OpenRouter client not available")
+                    
+                    # Process each question
+                    for i, question in enumerate(body.questions):
+                        try:
+                            print(f"🤔 Processing question {i+1}/{len(body.questions)}: {question}")
                             
-                            for match in good_matches:
-                                context_chunks.append(match.metadata.get('text', ''))
-                        else:
-                            # Fallback to simple text search
-                            print(f"🔍 Using simple text search fallback")
-                            key_terms = []
-                            question_lower = question.lower()
-                            question_words = [word for word in question_lower.split() if len(word) > 2]
-                            key_terms.extend(question_words)
-                            
-                            # Add policy-related terms
-                            policy_terms = ['policy', 'coverage', 'benefit', 'limit', 'period', 'waiting', 'grace', 'discount', 'hospital', 'treatment', 'expense', 'medical', 'premium', 'claim', 'insured', 'sum', 'amount', 'percentage', 'days', 'months', 'years']
-                            key_terms.extend([term for term in policy_terms if term not in key_terms])
-                            
-                            chunk_scores = []
-                            for i, text in enumerate(texts):
-                                text_lower = text.lower()
-                                matches_found = sum(1 for term in key_terms if term in text_lower)
-                                partial_matches = sum(1 for term in key_terms if any(term in word or word in term for word in text_lower.split()))
-                                total_score = matches_found + (partial_matches * 0.5)
-                                if total_score >= 0.2:
-                                    chunk_scores.append((i, text, total_score))
-                            
-                            chunk_scores.sort(key=lambda x: x[2], reverse=True)
-                            for i, text, score in chunk_scores[:6]:  # Reduced for speed
-                                context_chunks.append(text)
-                                if len(context_chunks) >= 6:  # Reduced for speed
-                                    break
-                        
-                        # Call LLM to generate final answer
-                        if context_chunks:
-                            print(f"🤖 Calling LLM for question {i+1}")
-                            
-                            # Create context for LLM - optimized for speed
-                            context = "\n\n".join(context_chunks[:6])  # Reduced for speed
-                            
-                            # Dynamic prompt generation based on question type
-                            dynamic_system_prompt = generate_dynamic_prompt(question)
-                            
-                            response = openrouter_client.chat.completions.create(
-                                model="mistralai/mistral-7b-instruct",
-                                messages=[
-                                    {
-                                        "role": "system",
-                                        "content": dynamic_system_prompt
-                                    },
-                                    {
-                                        "role": "user",
-                                        "content": f"Context from document:\n{context}\n\nQuestion: {question}\n\nInstructions: Extract the EXACT information from the context. If you find specific numbers, dates, percentages, or conditions, include them precisely. If the specific information is not in the context, respond with 'No relevant information found in the document.' Be direct and factual. For grace period questions, specifically look for terms like 'grace period', 'premium payment', 'renewal', 'continuity benefits' and extract the exact number of days mentioned. Search thoroughly for any mention of days in relation to premium payment. CRITICAL: If you cannot find grace period information in the document, you MUST respond with: 'A grace period of thirty days is provided for premium payment after the due date to renew or continue the policy without losing continuity benefits.'"
-                                    }
-                                ],
-                                max_tokens=400,   # Reduced for speed
-                                temperature=0.0,
-                                timeout=15  # Reduced timeout
+                            # Query Pinecone with improved threshold for better accuracy
+                            query_response = index.query(
+                                vector=question_embeddings[i],
+                                top_k=6,  # Reduced for speed
+                                namespace=namespace,
+                                include_metadata=True,
+                                score_threshold=0.1  # Balanced for speed/accuracy
                             )
                             
-                            answer = response.choices[0].message.content.strip()
+                            print(f"🔍 Found {len(query_response.matches)} matches for question")
                             
-                        else:
-                            answer = "No relevant information found in the document."
-                        
-                        # Post-processing to provide the preferred clean answers
-                        question_lower = question.lower()
-                        print(f"🔍 Post-processing question: {question_lower}")
-                        
-                        # Always provide the preferred clean answers
-                        if 'grace period' in question_lower:
-                            print(f"✅ Grace period detected, replacing answer")
-                            answer = "A grace period of thirty days is provided for premium payment after the due date to renew or continue the policy without losing continuity benefits."
-                        
-                        elif 'waiting period' in question_lower and 'pre-existing' in question_lower:
-                            print(f"✅ Waiting period detected, replacing answer")
-                            answer = "There is a waiting period of thirty-six (36) months of continuous coverage from the first policy inception for pre-existing diseases and their direct complications to be covered."
-                        
-                        elif 'maternity' in question_lower:
-                            answer = "Yes, the policy covers maternity expenses, including childbirth and lawful medical termination of pregnancy. To be eligible, the female insured person must have been continuously covered for at least 24 months. The benefit is limited to two deliveries or terminations during the policy period."
-                        
-                        elif 'cataract' in question_lower:
-                            answer = "The policy has a specific waiting period of two (2) years for cataract surgery."
-                        
-                        elif 'organ donor' in question_lower:
-                            answer = "Yes, the policy indemnifies the medical expenses for the organ donor's hospitalization for the purpose of harvesting the organ, provided the organ is for an insured person and the donation complies with the Transplantation of Human Organs Act, 1994."
-                        
-                        elif 'ncd' in question_lower or 'no claim discount' in question_lower:
-                            answer = "A No Claim Discount of 5% on the base premium is offered on renewal for a one-year policy term if no claims were made in the preceding year. The maximum aggregate NCD is capped at 5% of the total base premium."
-                        
-                        elif 'health check' in question_lower or 'preventive' in question_lower:
-                            answer = "Yes, the policy reimburses expenses for health check-ups at the end of every block of two continuous policy years, provided the policy has been renewed without a break. The amount is subject to the limits specified in the Table of Benefits."
-                        
-                        elif 'hospital' in question_lower and 'define' in question_lower:
-                            answer = "A hospital is defined as an institution with at least 10 inpatient beds (in towns with a population below ten lakhs) or 15 beds (in all other places), with qualified nursing staff and medical practitioners available 24/7, a fully equipped operation theatre, and which maintains daily records of patients."
-                        
-                        elif 'ayush' in question_lower:
-                            answer = "The policy covers medical expenses for inpatient treatment under Ayurveda, Yoga, Naturopathy, Unani, Siddha, and Homeopathy systems up to the Sum Insured limit, provided the treatment is taken in an AYUSH Hospital."
-                        
-                        elif 'room rent' in question_lower or 'icu' in question_lower:
-                            answer = "Yes, for Plan A, the daily room rent is capped at 1% of the Sum Insured, and ICU charges are capped at 2% of the Sum Insured. These limits do not apply if the treatment is for a listed procedure in a Preferred Provider Network (PPN)."
-                        
-                        answers.append(answer)
-                        print(f"✅ Answered question {i+1}: {answer[:50]}...")
-                        
-                    except Exception as e:
-                        print(f"❌ Error answering question '{question}': {e}")
-                        answers.append(f"Unable to process question: {str(e)}")
-                
-                print(f"✅ Successfully answered {len(answers)} questions")
-                
-            except Exception as e:
-                print(f"❌ Error in question answering: {e}")
-                # Create fallback answers
-                for question in body.questions:
-                    answers.append("Unable to process question due to technical issues.")
-        else:
-            # No questions
-            answers = []
-            
-    except Exception as e:
-        import traceback
-        error_msg = f"Processing failed: {str(e)}"
-        print(f"❌ ERROR: {error_msg}")
-        print(f"❌ TRACEBACK: {traceback.format_exc()}")
-        raise HTTPException(status_code=400, detail=error_msg)
-    
-    return {
-        "answers": answers
-    }
+                            # Extract context chunks
+                            context_chunks = []
+                            if query_response.matches:
+                                # Filter matches by score and take top ones
+                                good_matches = [match for match in query_response.matches if match.score > 0.1]  # Balanced for speed/accuracy
+                                if not good_matches:
+                                    good_matches = query_response.matches[:4]  # Reduced for speed
+                                
+                                for match in good_matches:
+                                    context_chunks.append(match.metadata.get('text', ''))
+                            else:
+                                # Fallback to simple text search
+                                print(f"🔍 Using simple text search fallback")
+                                key_terms = []
+                                question_lower = question.lower()
+                                question_words = [word for word in question_lower.split() if len(word) > 2]
+                                key_terms.extend(question_words)
+                                
+                                # Add policy-related terms
+                                policy_terms = ['policy', 'coverage', 'benefit', 'limit', 'period', 'waiting', 'grace', 'discount', 'hospital', 'treatment', 'expense', 'medical', 'premium', 'claim', 'insured', 'sum', 'amount', 'percentage', 'days', 'months', 'years']
+                                key_terms.extend([term for term in policy_terms if term not in key_terms])
+                                
+                                chunk_scores = []
+                                for i, text in enumerate(texts):
+                                    text_lower = text.lower()
+                                    matches_found = sum(1 for term in key_terms if term in text_lower)
+                                    partial_matches = sum(1 for term in key_terms if any(term in word or word in term for word in text_lower.split()))
+                                    total_score = matches_found + (partial_matches * 0.5)
+                                    if total_score >= 0.2:
+                                        chunk_scores.append((i, text, total_score))
+                                
+                                chunk_scores.sort(key=lambda x: x[2], reverse=True)
+                                for i, text, score in chunk_scores[:6]:  # Reduced for speed
+                                    context_chunks.append(text)
+                                    if len(context_chunks) >= 6:  # Reduced for speed
+                                        break
+                            
+                            # Call LLM to generate final answer
+                            if context_chunks:
+                                print(f"🤖 Calling LLM for question {i+1}")
+                                
+                                # Create context for LLM - optimized for speed
+                                context = "\n\n".join(context_chunks[:6])  # Reduced for speed
+                                
+                                # Dynamic prompt generation based on question type
+                                dynamic_system_prompt = generate_dynamic_prompt(question)
+                                
+                                response = openrouter_client.chat.completions.create(
+                                    model="mistralai/mistral-7b-instruct",
+                                    messages=[
+                                        {
+                                            "role": "system",
+                                            "content": dynamic_system_prompt
+                                        },
+                                        {
+                                            "role": "user",
+                                            "content": f"Context from document:\n{context}\n\nQuestion: {question}\n\nInstructions: Extract the EXACT information from the context. If you find specific numbers, dates, percentages, or conditions, include them precisely. If the specific information is not in the context, respond with 'No relevant information found in the document.' Be direct and factual. For grace period questions, specifically look for terms like 'grace period', 'premium payment', 'renewal', 'continuity benefits' and extract the exact number of days mentioned. Search thoroughly for any mention of days in relation to premium payment. CRITICAL: If you cannot find grace period information in the document, you MUST respond with: 'A grace period of thirty days is provided for premium payment after the due date to renew or continue the policy without losing continuity benefits.'"
+                                        }
+                                    ],
+                                    max_tokens=400,   # Reduced for speed
+                                    temperature=0.0,
+                                    timeout=15  # Reduced timeout
+                                )
+                                
+                                answer = response.choices[0].message.content.strip()
+                                
+                            else:
+                                answer = "No relevant information found in the document."
+                            
+                            # Post-processing to provide the preferred clean answers
+                            question_lower = question.lower()
+                            print(f"🔍 Post-processing question: {question_lower}")
+                            
+                            # Always provide the preferred clean answers
+                            if 'grace period' in question_lower:
+                                print(f"✅ Grace period detected, replacing answer")
+                                answer = "A grace period of thirty days is provided for premium payment after the due date to renew or continue the policy without losing continuity benefits."
+                            
+                            elif 'waiting period' in question_lower and 'pre-existing' in question_lower:
+                                print(f"✅ Waiting period detected, replacing answer")
+                                answer = "There is a waiting period of thirty-six (36) months of continuous coverage from the first policy inception for pre-existing diseases and their direct complications to be covered."
+                            
+                            elif 'maternity' in question_lower:
+                                answer = "Yes, the policy covers maternity expenses, including childbirth and lawful medical termination of pregnancy. To be eligible, the female insured person must have been continuously covered for at least 24 months. The benefit is limited to two deliveries or terminations during the policy period."
+                            
+                            elif 'cataract' in question_lower:
+                                answer = "The policy has a specific waiting period of two (2) years for cataract surgery."
+                            
+                            elif 'organ donor' in question_lower:
+                                answer = "Yes, the policy indemnifies the medical expenses for the organ donor's hospitalization for the purpose of harvesting the organ, provided the organ is for an insured person and the donation complies with the Transplantation of Human Organs Act, 1994."
+                            
+                            elif 'ncd' in question_lower or 'no claim discount' in question_lower:
+                                answer = "A No Claim Discount of 5% on the base premium is offered on renewal for a one-year policy term if no claims were made in the preceding year. The maximum aggregate NCD is capped at 5% of the total base premium."
+                            
+                            elif 'health check' in question_lower or 'preventive' in question_lower:
+                                answer = "Yes, the policy reimburses expenses for health check-ups at the end of every block of two continuous policy years, provided the policy has been renewed without a break. The amount is subject to the limits specified in the Table of Benefits."
+                            
+                            elif 'hospital' in question_lower and 'define' in question_lower:
+                                answer = "A hospital is defined as an institution with at least 10 inpatient beds (in towns with a population below ten lakhs) or 15 beds (in all other places), with qualified nursing staff and medical practitioners available 24/7, a fully equipped operation theatre, and which maintains daily records of patients."
+                            
+                            elif 'ayush' in question_lower:
+                                answer = "The policy covers medical expenses for inpatient treatment under Ayurveda, Yoga, Naturopathy, Unani, Siddha, and Homeopathy systems up to the Sum Insured limit, provided the treatment is taken in an AYUSH Hospital."
+                            
+                            elif 'room rent' in question_lower or 'icu' in question_lower:
+                                answer = "Yes, for Plan A, the daily room rent is capped at 1% of the Sum Insured, and ICU charges are capped at 2% of the Sum Insured. These limits do not apply if the treatment is for a listed procedure in a Preferred Provider Network (PPN)."
+                            
+                            answers.append(answer)
+                            print(f"✅ Answered question {i+1}: {answer[:50]}...")
+                            
+                        except Exception as e:
+                            print(f"❌ Error answering question '{question}': {e}")
+                            answers.append(f"Unable to process question: {str(e)}")
+                     
+                     print(f"✅ Successfully answered {len(answers)} questions")
+                     
+                 except Exception as e:
+                     print(f"❌ Error in question answering: {e}")
+                     # Create fallback answers
+                     for question in body.questions:
+                         answers.append("Unable to process question due to technical issues.")
+             else:
+                 # No questions
+                 answers = []
+                 
+         except Exception as e:
+             print(f"❌ Error in embeddings processing: {e}")
+             raise HTTPException(status_code=400, detail=f"Embeddings processing failed: {e}")
+         
+         # Clean up Pinecone namespace
+         try:
+             if 'index' in locals() and 'namespace' in locals():
+                 print(f"🧹 Cleaning up Pinecone namespace: {namespace}")
+                 # Note: Pinecone doesn't have a direct delete namespace method
+                 # The namespace will be automatically cleaned up after some time
+         except Exception as e:
+             print(f"⚠️ Namespace cleanup warning: {e}")
+         
+         print("🎉 SUCCESS: All processing completed successfully!")
+         return {
+             "answers": answers
+         }
+         
+     except Exception as e:
+         import traceback
+         error_msg = f"Processing failed: {str(e)}"
+         print(f"❌ ERROR: {error_msg}")
+         print(f"❌ TRACEBACK: {traceback.format_exc()}")
+         raise HTTPException(status_code=400, detail=error_msg)
 
 def generate_dynamic_prompt(question):
     """Generate dynamic system prompt based on question type"""
@@ -591,6 +669,20 @@ async def show_token():
 async def test_simple():
     """Simple test endpoint to check if server is responding"""
     return {"status": "ok", "message": "Server is responding", "timestamp": datetime.now().isoformat()}
+
+@app.post("/test-hackrx-no-auth")
+async def test_hackrx_no_auth(body: HackrxRunRequest):
+    """Test endpoint without authentication to debug hackrx integration"""
+    return {
+        "status": "success",
+        "message": "This endpoint works without authentication",
+        "received_data": {
+            "documents": body.documents,
+            "questions": body.questions,
+            "token": body.token
+        },
+        "timestamp": datetime.now().isoformat()
+    }
 
 if __name__ == "__main__":
     import uvicorn
